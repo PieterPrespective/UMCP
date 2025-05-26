@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  umcpserver:
+    build: .
+    container_name: umcpserver
+    image: umcpserver:latest
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
