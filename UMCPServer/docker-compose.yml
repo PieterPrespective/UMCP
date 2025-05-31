@@ -2,9 +2,33 @@ version: '3.8'
 
 services:
   umcpserver:
-    build: .
-    container_name: umcpserver
-    image: umcpserver:latest
-    stdin_open: true
-    tty: true
-    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Docker-specific settings
+      - UNITY_HOST=host.docker.internal  # Maps to the host machine from within Docker
+      - UNITY_PORT=6400                  # Unity TCP Server port
+      - MCP_PORT=6500                    # MCP server port
+      - ENABLE_LOGGING=true              # Enable detailed logging for troubleshooting
+      # Connection settings
+      - CONNECTION_TIMEOUT=86400         # 24 hours
+      - BUFFER_SIZE=16777216             # 16MB
+      - MAX_RETRIES=5                    # Increased retries for Docker environments
+      - RETRY_DELAY=2.0                  # Longer retry delay for Docker environments
+    stdin_open: true   # Required for interactive mode
+    tty: true          # Required for interactive mode
+    
+    # Maps host.docker.internal to the host IP for all platforms
+    # This works on Linux, macOS and Windows
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    
+    # Uncomment the line below if you still have connection issues
+    # This provides direct access to the host network (Linux only)
+    # network_mode: "host"
+    
+    # Alternative approach: Publish Unity port to the host
+    # Only needed for specific network configurations
+    # ports:
+    #  - "6400:6400"

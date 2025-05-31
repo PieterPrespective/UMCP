@@ -1,67 +1,128 @@
-# UMCP Server
+# UMCP MCP Server
 
-A simple C# MCP (Model Context Protocol) server with an echo tool that returns "Hello from UMCPServer A14655".
+A C# Model Context Protocol (MCP) server that bridges MCP requests to the Unity Editor via TCP connection.
+
+## Overview
+
+This server acts as a bridge between MCP clients and the Unity Editor. It forwards MCP tool requests to the Unity Editor running the UMCP Unity3D Client (TCP Server) and returns the responses.
 
 ## Features
 
-- Single echo tool that returns a greeting message
-- Docker support for easy deployment
-- Compatible with Claude Desktop and other MCP clients
+- **Unity Connection Management**: Automatically connects to Unity Editor on startup with reconnection support
+- **GetProjectPath Tool**: Retrieves Unity project paths including:
+  - Project path
+  - Data path
+  - Persistent data path
+  - Streaming assets path
+  - Temporary cache path
+- **GetServerVersion Tool**: Returns the version information of the MCP server
+- **Timeout Handling**: Configurable timeout for Unity responses
+- **Docker Support**: Can be run in a Docker container
+- **Environment Configuration**: All settings can be configured via environment variables
 
-## Building and Running
+## Requirements
 
-### Local Development
+- .NET 9.0 SDK
+- Unity Editor with UMCP Unity3D Client running
+- Docker (optional, for containerized deployment)
 
-1. Ensure you have .NET 9.0 SDK installed
-2. Build the project:
-   ```bash
-   dotnet build
-   ```
-3. Run the server:
-   ```bash
+## Configuration
+
+The server can be configured using environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `UNITY_HOST` | Unity TCP server host | `localhost` |
+| `UNITY_PORT` | Unity TCP server port | `6400` |
+| `MCP_PORT` | MCP server port | `6500` |
+| `CONNECTION_TIMEOUT` | Connection timeout in seconds | `86400` (24 hours) |
+| `BUFFER_SIZE` | TCP buffer size in bytes | `16777216` (16MB) |
+| `MAX_RETRIES` | Maximum connection retries | `3` |
+| `RETRY_DELAY` | Delay between retries in seconds | `1.0` |
+
+## Running Locally
+
+1. Ensure Unity Editor is running with the UMCP Unity3D Client active
+2. Build and run the server:dotnet build
    dotnet run
-   ```
+## Running with Docker
 
-### Docker Deployment
+### Build the Docker image:docker build -t umcpserver .
+### Run the container:docker run -it --rm \
+  -e UNITY_HOST=host.docker.internal \
+  -e UNITY_PORT=6400 \
+  umcpserver
+Note: Use `host.docker.internal` as the Unity host when running in Docker on Windows/Mac to connect to Unity running on the host machine.
 
-1. Build the Docker image:
-   ```bash
-   docker build -t umcpserver .
-   ```
+## Versioning
 
-2. Run with Docker:
-   ```bash
-   docker run -it umcpserver
-   ```
+The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 
-3. Or use Docker Compose:
-   ```bash
-   docker-compose up -d
-   ```
+- Version numbers are in the format `MAJOR.MINOR.PATCH[-SUFFIX]`
+- MAJOR version increments for incompatible API changes
+- MINOR version increments for added functionality (backwards-compatible)
+- PATCH version increments for bug fixes (backwards-compatible)
+- Pre-release labels may be appended as `-alpha`, `-beta`, etc.
 
-## Usage with Claude Desktop
+Version information is centrally managed in `Directory.Build.props` at the solution root.
 
-To use this server with Claude Desktop, add the following configuration to your Claude Desktop settings:
+## Changelog
 
-```json
+See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes between versions.
+
+## Architecture
+
+The server consists of:
+
+- **Program.cs**: Main entry point, sets up dependency injection and hosting
+- **UnityConnectionService**: Manages TCP connection to Unity Editor
+- **GetProjectPathTool**: MCP tool that retrieves Unity project paths
+- **GetServerVersionTool**: MCP tool that retrieves server version information
+- **Models**: Data models for Unity communication
+- **Services**: Service layer for Unity connection management
+
+## Adding New Tools
+
+To add new tools that bridge to Unity:
+
+1. Create a new tool class in the `Tools` folder
+2. Inherit from `[McpServerToolType]` attribute
+3. Inject `UnityConnectionService` for Unity communication
+4. Use `SendCommandAsync` to forward requests to Unity
+5. Register the tool in `Program.cs` using `.WithTools<YourTool>()`
+
+Example:[McpServerToolType]
+public class YourTool
 {
-  "mcpServers": {
-    "umcp": {
-      "command": "docker",
-      "args": ["run", "-i", "umcpserver"]
+    private readonly UnityConnectionService _unityConnection;
+    
+    public YourTool(UnityConnectionService unityConnection)
+    {
+        _unityConnection = unityConnection;
     }
-  }
+    
+    [McpServerTool]
+    [Description("Your tool description")]
+    public async Task<object> YourMethod(string param1, CancellationToken cancellationToken = default)
+    {
+        var parameters = new JObject
+        {
+            ["param1"] = param1
+        };
+        
+        var result = await _unityConnection.SendCommandAsync("your_command", parameters, cancellationToken);
+        // Process and return result
+    }
 }
-```
+## Error Handling
 
-## Tools Available
+The server handles various error scenarios:
 
-- **echo**: Returns "Hello from UMCPServer A14655"
+- Unity Editor not running: Returns appropriate error message
+- Connection timeouts: Configurable timeout with clear error messages
+- Unity errors: Forwards Unity error messages to MCP clients
+- Network errors: Automatic reconnection attempts
 
-## Project Structure
+## Logging
 
-- `Program.cs` - Main entry point and tool implementation
-- `UMCPServer.csproj` - Project file with dependencies
-- `Dockerfile` - Docker configuration for containerization
-- `docker-compose.yml` - Docker Compose configuration
-- `.dockerignore` - Files to exclude from Docker build
+The server uses Microsoft.Extensions.Logging with console output. Log levels can be configured through standard .NET logging configuration.

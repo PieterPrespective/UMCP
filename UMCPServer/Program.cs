@@ -1,22 +1,151 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using ModelContextProtocol.Server;
-using System.ComponentModel;
+using UMCPServer.Models;
+using UMCPServer.Services;
+using UMCPServer.Tools;
+using System.Reflection;
 
-var builder = Host.CreateEmptyApplicationBuilder(settings: null);
+var builder = Host.CreateApplicationBuilder(args);
+
+// Configure logging - expanded to enable more logging in Docker containers for troubleshooting
+builder.Logging.ClearProviders();
+// Check for explicit logging configuration from environment
+bool enableLogging = LoggingConfig.IsEnabled;
+
+if (enableLogging)
+{
+    builder.Logging.AddConsole();
+    builder.Logging.SetMinimumLevel(LogLevel.Information);
+}
+
+// Detect if running in Docker
+bool isRunningInDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+
+// Configure server settings
+builder.Services.Configure<ServerConfiguration>(options =>
+{
+    // Unity host with Docker awareness
+    string defaultHost = isRunningInDocker ? "host.docker.internal" : "localhost";
+    options.UnityHost = Environment.GetEnvironmentVariable("UNITY_HOST") ?? defaultHost;
+    options.UnityPort = int.TryParse(Environment.GetEnvironmentVariable("UNITY_PORT"), out var port) ? port : 6400;
+    options.McpPort = int.TryParse(Environment.GetEnvironmentVariable("MCP_PORT"), out var mcpPort) ? mcpPort : 6500;
+    options.ConnectionTimeoutSeconds = double.TryParse(Environment.GetEnvironmentVariable("CONNECTION_TIMEOUT"), out var timeout) ? timeout : 86400.0;
+    options.BufferSize = int.TryParse(Environment.GetEnvironmentVariable("BUFFER_SIZE"), out var bufferSize) ? bufferSize : 16 * 1024 * 1024;
+    options.MaxRetries = int.TryParse(Environment.GetEnvironmentVariable("MAX_RETRIES"), out var retries) ? retries : 3;
+    options.RetryDelaySeconds = double.TryParse(Environment.GetEnvironmentVariable("RETRY_DELAY"), out var delay) ? delay : 1.0;
+    options.IsRunningInContainer = isRunningInDocker;
+});
+
+// Register services
+builder.Services.AddSingleton<UnityConnectionService>();
+
+// Register MCP server with tools
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
-    .WithTools<EchoTool>();
+    .WithTools<GetProjectPathTool>()
+    .WithTools<GetServerVersionTool>();
 
-await builder.Build().RunAsync();
+// Add hosted service for Unity connection lifecycle
+builder.Services.AddHostedService<UnityConnectionLifecycleService>();
 
-[McpServerToolType]
-public class EchoTool
+var host = builder.Build();
+
+// Log startup information
+if (enableLogging)
 {
-    [McpServerTool, Description("Returns a greeting message from UMCPServer.")]
-    public static string Echo()
+    var logger = host.Services.GetRequiredService<ILogger<Program>>();
+
+    // Get version from assembly
+    var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
+
+    logger.LogInformation("UMCP MCP Server v{Version} starting up", version);
+    logger.LogInformation("This server bridges MCP requests to the Unity Editor via TCP");
+    logger.LogInformation("Ensure Unity Editor is running with the UMCP Unity3D Client active");
+    
+    // Log Docker-specific information
+    if (isRunningInDocker)
     {
-        return "Hello from UMCPServer A14655";
+        var config = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ServerConfiguration>>().Value;
+        logger.LogInformation("Running in Docker container");
+        logger.LogInformation("Unity host: {UnityHost}:{UnityPort}", config.UnityHost, config.UnityPort);
+        logger.LogInformation("MCP port: {McpPort}", config.McpPort);
+    }
+}
+
+await host.RunAsync();
+
+// Global configuration that determines if logging is enabled
+public static class LoggingConfig
+{
+    // Default logging setting - can be overridden by ENABLE_LOGGING environment variable
+    public const bool EnableLogging = false;
+    
+    public static bool IsEnabled => bool.TryParse(Environment.GetEnvironmentVariable("ENABLE_LOGGING"), out var envLogging) 
+        ? envLogging 
+        : EnableLogging;
+}
+
+// Hosted service to manage Unity connection lifecycle
+public class UnityConnectionLifecycleService : BackgroundService
+{
+    private readonly ILogger<UnityConnectionLifecycleService> _logger;
+    private readonly UnityConnectionService _unityConnection;
+    private readonly ServerConfiguration _config;
+    
+    public UnityConnectionLifecycleService(
+        ILogger<UnityConnectionLifecycleService> logger,
+        UnityConnectionService unityConnection,
+        Microsoft.Extensions.Options.IOptions<ServerConfiguration> config)
+    {
+        _logger = logger;
+        _unityConnection = unityConnection;
+        _config = config.Value;
+    }
+    
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // Try to connect to Unity on startup
+        _logger.LogInformation("Attempting to connect to Unity Editor at {UnityHost}:{UnityPort}...", 
+            _config.UnityHost, _config.UnityPort);
+        
+        // For Docker, provide more detailed connection information
+        if (_config.IsRunningInContainer)
+        {
+            _logger.LogInformation("Running in container environment. Make sure Unity is accessible at {UnityHost}:{UnityPort}", 
+                _config.UnityHost, _config.UnityPort);
+            _logger.LogInformation("If connection fails, verify that:");
+            _logger.LogInformation("1. Unity Editor is running on the host machine with UMCP Unity3D Client active");
+            _logger.LogInformation("2. Unity TCP server is listening on all interfaces (not just localhost)");
+            _logger.LogInformation("3. Host firewall allows incoming connections on port {UnityPort}", _config.UnityPort);
+            _logger.LogInformation("4. Container has proper network configuration (host.docker.internal maps to host)");
+        }
+        
+        if (await _unityConnection.ConnectAsync())
+        {
+            _logger.LogInformation("Successfully connected to Unity Editor on startup");
+        }
+        else
+        {
+            _logger.LogWarning("Could not connect to Unity Editor on startup. Connection will be attempted when needed.");
+            
+            if (_config.IsRunningInContainer)
+            {
+                _logger.LogWarning("For Docker environments, ensure UNITY_HOST is set to 'host.docker.internal' or the actual host IP address");
+            }
+        }
+        
+        // Keep the service running
+        await Task.Delay(Timeout.Infinite, stoppingToken);
+    }
+    
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("UMCP MCP Server shutting down");
+        _unityConnection.Dispose();
+        await base.StopAsync(cancellationToken);
     }
 }

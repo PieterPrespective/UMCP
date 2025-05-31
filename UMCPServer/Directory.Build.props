@@ -1,0 +1,17 @@
+<Project>
+  <!-- Central version properties -->
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionSuffix>alpha</VersionSuffix>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <InformationalVersion>0.1.0-alpha</InformationalVersion>
+    <RepositoryUrl>https://github.com/yourusername/UMCPServer</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/yourusername/UMCPServer</PackageProjectUrl>
+    <Description>Unity Model Context Protocol Server</Description>
+    <Company>Your Company</Company>
+    <Authors>Your Name</Authors>
+    <Copyright>Copyright © $([System.DateTime]::Now.Year)</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>
