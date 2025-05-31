@@ -6,6 +6,7 @@ This project contains tests for the UMCPServer, including unit tests and integra
 
 - **UnitTests**: Contains basic unit tests that verify individual components in isolation.
 - **IntegrationTests**: Contains integration tests that test multiple components working together, using the IEnumerator pattern.
+  - **UnityBridge**: Contains real integration tests that establish actual UMCP Bridge connections with Unity3D (no mocking).
 
 ## IEnumerator-Based Integration Tests
 
@@ -16,6 +17,15 @@ The integration tests in this project use an IEnumerator-based approach to creat
 3. **Logical Grouping**: Related assertions are grouped in steps
 4. **Self-Documentation**: Each step can be labeled for clarity
 5. **Async Support**: Easily integrates with asynchronous operations
+
+## Unity Bridge Integration Tests
+
+The UnityBridge folder contains special integration tests that create real connections with Unity3D:
+
+1. **UMCPBridgeIntegrationTest**: Automatically starts Unity in headless mode and connects to it
+2. **UMCPBridgeRealConnectionTest**: Connects to an already running Unity instance with UMCP Client
+
+These tests verify the actual UMCP Bridge functionality without any mocking. See the UnityBridge/README.md for detailed instructions.
 
 ## Running the Tests
 
@@ -31,6 +41,12 @@ dotnet test --filter "Category=Unit"
 
 # Run tests for a specific tool
 dotnet test --filter "FullyQualifiedName~GetServerVersionTool"
+
+# Run Unity Bridge integration tests
+dotnet test --filter "FullyQualifiedName~UMCPBridge"
+
+# Run only tests that require Unity to be running
+dotnet test --filter "Category=RequiresUnity"
 
 # Run with detailed output
 dotnet test -v n

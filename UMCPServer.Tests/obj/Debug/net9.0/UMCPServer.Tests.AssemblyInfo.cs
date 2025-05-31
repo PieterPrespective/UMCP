@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("UMCPServer.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6dc7dfcbea61ccec70c51a63874dd3b43087985a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+32465c48bc6f3315e87c0629c418caa7b5c13b39")]
 [assembly: System.Reflection.AssemblyProductAttribute("UMCPServer.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("UMCPServer.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

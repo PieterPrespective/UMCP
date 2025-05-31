@@ -54,6 +54,22 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "dependencies": {
+            "Microsoft.Extensions.DependencyInjection": {
+              "target": "Package",
+              "version": "[9.0.5, )"
+            },
+            "Microsoft.Extensions.Logging": {
+              "target": "Package",
+              "version": "[9.0.5, )"
+            },
+            "Microsoft.Extensions.Logging.Console": {
+              "target": "Package",
+              "version": "[9.0.5, )"
+            },
+            "Microsoft.Extensions.Options": {
+              "target": "Package",
+              "version": "[9.0.5, )"
+            },
             "Microsoft.NET.Test.Sdk": {
               "target": "Package",
               "version": "[17.14.0, )"
