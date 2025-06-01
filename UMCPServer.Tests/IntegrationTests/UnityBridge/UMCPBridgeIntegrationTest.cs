@@ -323,6 +323,7 @@ public class UMCPBridgeIntegrationTest : IntegrationTestBase
 
 public abstract class YieldInstruction
 {
+    public long TimeoutDuration = 10000; // Default timeout duration in milliseconds
     public abstract bool IsDone { get; }
 }
 

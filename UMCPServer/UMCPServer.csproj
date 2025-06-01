@@ -30,6 +30,12 @@
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.5" />
     <PackageReference Include="ModelContextProtocol" Version="0.1.0-preview.14" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- Set the internals visible to allow for using dynamics in the tests to read the contents of result objects -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>UMCPServer.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
+
 
 </Project>

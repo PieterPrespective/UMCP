@@ -25,7 +25,6 @@ public class GetProjectPathTool
         try
         {
             _logger.LogInformation("Getting Unity project path");
-            
             // Check if Unity connection is available
             if (!_unityConnection.IsConnected && !await _unityConnection.ConnectAsync())
             {
@@ -35,7 +34,6 @@ public class GetProjectPathTool
                     error = "Unity Editor is not running or MCP Bridge is not available. Please ensure Unity Editor is open and the UMCP Unity3D Client is active."
                 };
             }
-            
             // Send command to Unity
             var result = await _unityConnection.SendCommandAsync("get_project_path", null, cancellationToken);
             
@@ -47,7 +45,6 @@ public class GetProjectPathTool
                     error = "No response received from Unity within the timeout period"
                 };
             }
-            
             // Extract the response data
             bool success = result.Value<bool?>("success") ?? false;
             string? message = result.Value<string?>("message");
@@ -61,7 +58,6 @@ public class GetProjectPathTool
                     error = result.Value<string?>("error") ?? "Failed to get project path"
                 };
             }
-            
             // Return the project path information
             return new
             {

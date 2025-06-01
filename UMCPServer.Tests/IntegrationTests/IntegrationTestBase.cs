@@ -1,5 +1,6 @@
 using System.Collections;
 using NUnit.Framework;
+using UMCPServer.Tests.IntegrationTests.UnityBridge;
 
 namespace UMCPServer.Tests.IntegrationTests;
 
@@ -55,7 +56,24 @@ public abstract class IntegrationTestBase
             {
                 task.GetAwaiter().GetResult();
             }
+
             
+            if (testCoroutine.Current is YieldInstruction yieldInstruction)
+            {
+                System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+                while (!yieldInstruction.IsDone && sw.ElapsedMilliseconds < yieldInstruction.TimeoutDuration)
+                {
+                    // Wait for the yield instruction to complete
+                }
+
+                if(sw.ElapsedMilliseconds >= yieldInstruction.TimeoutDuration)
+                {
+                    Assert.Fail($"Yield instruction timed out after {yieldInstruction.TimeoutDuration} ms at step {CurrentStep}");
+                }
+                sw.Stop();
+            }
+            
+
             // If the current value is another IEnumerator, we run it as a nested sequence
             if (testCoroutine.Current is IEnumerator nestedEnumerator)
             {

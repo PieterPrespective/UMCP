@@ -1,10 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using System.Collections;
-using System.Diagnostics;
 using UMCPServer.Models;
 using UMCPServer.Services;
 using UMCPServer.Tools;
@@ -86,16 +84,21 @@ public class UMCPBridgeRealConnectionTest : IntegrationTestBase
     private IEnumerator ConnectAndGetProjectPathSteps()
     {
         // Step 1: Check if Unity is running with UMCP
-        Console.WriteLine($"Step {CurrentStep + 1}: Checking if Unity is running with UMCP Client...");
+        Console.WriteLine($">>>> Step {CurrentStep + 1}: Checking if Unity is running with UMCP Client...");
         bool isUnityAvailable = false;
         bool portConnected = false;
 
         IsUnityPortOpen((_portOpen) => {
+            Console.WriteLine($">>>> Step {CurrentStep + 1}a: Port open status: {_portOpen}");
             isUnityAvailable = _portOpen;
             portConnected = true;
         });
 
-        yield return new WaitUntil(() => portConnected);
+        yield return new WaitUntil(() => {
+            return portConnected;
+            });
+
+        Console.WriteLine($"Got here!");
 
         if (!isUnityAvailable)
         {
@@ -126,25 +129,21 @@ public class UMCPBridgeRealConnectionTest : IntegrationTestBase
         
         // Step 4: Verify the project path
         Console.WriteLine($"Step {CurrentStep + 1}: Verifying project path result...");
-        var result = getPathTask.Result;
+        dynamic result = getPathTask.Result;
         Assert.That(result, Is.Not.Null, "Result should not be null");
+        Assert.That(result.success, Is.True, "Project path request should be successful");
+        Assert.That(result.projectPath, Is.Not.Null.And.Not.Empty, "Project path should not be empty");
+        Console.WriteLine($"Retrieved project path: {result.projectPath}");
         
-        // Extract project path from result
-        dynamic resultObj = result;
-        Assert.That(resultObj.success, Is.True, "Project path request should be successful");
-        Assert.That(resultObj.projectPath, Is.Not.Null.And.Not.Empty, "Project path should not be empty");
-        
-        _projectPath = resultObj.projectPath.ToString();
-        Console.WriteLine($"Retrieved project path: {_projectPath}");
-        
+
         // Additional verifications
-        Assert.That(resultObj.dataPath, Is.Not.Null.And.Not.Empty, "Data path should not be empty");
-        Assert.That(resultObj.persistentDataPath, Is.Not.Null.And.Not.Empty, "Persistent data path should not be empty");
+        Assert.That(result.dataPath, Is.Not.Null.And.Not.Empty, "Data path should not be empty");
+        Assert.That(result.persistentDataPath, Is.Not.Null.And.Not.Empty, "Persistent data path should not be empty");
         
-        Console.WriteLine($"Data path: {resultObj.dataPath}");
-        Console.WriteLine($"Persistent data path: {resultObj.persistentDataPath}");
-        Console.WriteLine($"Streaming assets path: {resultObj.streamingAssetsPath ?? "Not set"}");
-        Console.WriteLine($"Temporary cache path: {resultObj.temporaryCachePath ?? "Not set"}");
+        Console.WriteLine($"Data path: {result.dataPath}");
+        Console.WriteLine($"Persistent data path: {result.persistentDataPath}");
+        Console.WriteLine($"Streaming assets path: {result.streamingAssetsPath}");
+        Console.WriteLine($"Temporary cache path: {result.temporaryCachePath}");
         
         // Step 5: Test ping command to ensure bridge is working properly
         Console.WriteLine($"Step {CurrentStep + 1}: Testing ping command...");
@@ -169,7 +168,7 @@ public class UMCPBridgeRealConnectionTest : IntegrationTestBase
             editorStateIsDone = true;
         });
         yield return new WaitUntil(() => editorStateIsDone);
-
+        _projectPath = result.projectPath;
         Console.WriteLine("Integration test completed successfully!");
         Console.WriteLine($"Final project path: {_projectPath}");
     }
@@ -196,12 +195,24 @@ public class UMCPBridgeRealConnectionTest : IntegrationTestBase
     {
         try
         {
-            using var client = new System.Net.Sockets.TcpClient();
-            await client.ConnectAsync("localhost", UnityPort);
-            _onPortOpen(true);
+            using (var client = new System.Net.Sockets.TcpClient())
+            {
+                // Use shorter connection timeout for initial attempts
+                var connectTask = client.ConnectAsync("localhost", UnityPort);
+                var timeoutTask = Task.Delay(TimeSpan.FromSeconds(10d));
+                if (await Task.WhenAny(connectTask, timeoutTask) == timeoutTask)
+                {
+                    throw new TimeoutException($"Connection to localhost:{UnityPort} timed out");
+                }
+                _onPortOpen(true);
+            }
         }
-        catch
+        catch(Exception _ex)
         {
+            Console.WriteLine($">>>> Step {CurrentStep + 1}a: Failed to connect at localhost:{UnityPort}. Exception: {_ex.Message}");
+            // If we can't connect, we assume the port is not open
+            Console.WriteLine("Assuming Unity is not running with UMCP Client.");
+            
             _onPortOpen(false);
         }
     }
