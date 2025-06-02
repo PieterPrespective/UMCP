@@ -49,7 +49,8 @@ builder.Services
     .WithStdioServerTransport()
     .WithTools<GetProjectPathTool>()
     .WithTools<GetServerVersionTool>()
-    .WithTools<GetUnityClientStateTool>();
+    .WithTools<GetUnityClientStateTool>()
+    .WithTools<ExecuteMenuItemTool>();
 
 // Add hosted service for Unity connection lifecycle
 builder.Services.AddHostedService<UnityConnectionLifecycleService>();
