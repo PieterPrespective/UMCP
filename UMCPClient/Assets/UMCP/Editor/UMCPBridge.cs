@@ -17,6 +17,9 @@ namespace UMCP.Editor
     [InitializeOnLoad]
     public static partial class UMCPBridge
     {
+        // State change notification
+        private static TcpClient stateReportClient;
+        private static NetworkStream stateReportStream;
         private static TcpListener listener;
         private static bool isRunning = false;
         private static readonly object lockObj = new();
@@ -41,6 +44,10 @@ namespace UMCP.Editor
         {
             Start();
             EditorApplication.quitting += Stop;
+            
+            // Subscribe to state changes
+            UMCP.Editor.Helpers.EditorStateHelper.OnRunmodeChanged += OnRunmodeChanged;
+            UMCP.Editor.Helpers.EditorStateHelper.OnContextChanged += OnContextChanged;
         }
 
         public static void Start()
@@ -60,6 +67,19 @@ namespace UMCP.Editor
             isRunning = false;
             listener.Stop();
             EditorApplication.update -= ProcessCommands;
+            
+            // Unsubscribe from state changes
+            UMCP.Editor.Helpers.EditorStateHelper.OnRunmodeChanged -= OnRunmodeChanged;
+            UMCP.Editor.Helpers.EditorStateHelper.OnContextChanged -= OnContextChanged;
+            
+            // Close state report connection
+            try
+            {
+                stateReportStream?.Close();
+                stateReportClient?.Close();
+            }
+            catch { }
+            
             Debug.Log("UMCPBridge stopped.");
         }
 
@@ -88,44 +108,61 @@ namespace UMCP.Editor
 
         private static async Task HandleClientAsync(TcpClient client)
         {
-            using (client)
-            using (var stream = client.GetStream())
+            // Add client to connected clients list
+            lock (clientsLock)
             {
-                var buffer = new byte[8192];
-                while (isRunning)
+                connectedClients.Add(client);
+            }
+
+            try
+            {
+                using (client)
+                using (var stream = client.GetStream())
                 {
-                    try
+                    var buffer = new byte[8192];
+                    while (isRunning)
                     {
-                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                        if (bytesRead == 0) break; // Client disconnected
-
-                        string commandText = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                        string commandId = Guid.NewGuid().ToString();
-                        var tcs = new TaskCompletionSource<string>();
-
-                        // Special handling for ping command to avoid JSON parsing
-                        if (commandText.Trim() == "ping")
+                        try
                         {
-                            // Direct response to ping without going through JSON parsing
-                            byte[] pingResponseBytes = System.Text.Encoding.UTF8.GetBytes("{\"status\":\"success\",\"result\":{\"message\":\"pong\"}}");
-                            await stream.WriteAsync(pingResponseBytes, 0, pingResponseBytes.Length);
-                            continue;
-                        }
+                            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                            if (bytesRead == 0) break; // Client disconnected
 
-                        lock (lockObj)
+                            string commandText = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                            string commandId = Guid.NewGuid().ToString();
+                            var tcs = new TaskCompletionSource<string>();
+
+                            // Special handling for ping command to avoid JSON parsing
+                            if (commandText.Trim() == "ping")
+                            {
+                                // Direct response to ping without going through JSON parsing
+                                byte[] pingResponseBytes = System.Text.Encoding.UTF8.GetBytes("{\"status\":\"success\",\"result\":{\"message\":\"pong\"}}");
+                                await stream.WriteAsync(pingResponseBytes, 0, pingResponseBytes.Length);
+                                continue;
+                            }
+
+                            lock (lockObj)
+                            {
+                                commandQueue[commandId] = (commandText, tcs);
+                            }
+
+                            string response = await tcs.Task;
+                            byte[] responseBytes = System.Text.Encoding.UTF8.GetBytes(response);
+                            await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
+                        }
+                        catch (Exception ex)
                         {
-                            commandQueue[commandId] = (commandText, tcs);
+                            Debug.LogError($"Client handler error: {ex.Message}");
+                            break;
                         }
-
-                        string response = await tcs.Task;
-                        byte[] responseBytes = System.Text.Encoding.UTF8.GetBytes(response);
-                        await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
                     }
-                    catch (Exception ex)
-                    {
-                        Debug.LogError($"Client handler error: {ex.Message}");
-                        break;
-                    }
+                }
+            }
+            finally
+            {
+                // Remove client from connected clients list
+                lock (clientsLock)
+                {
+                    connectedClients.Remove(client);
                 }
             }
         }
@@ -291,11 +328,18 @@ namespace UMCP.Editor
                     "read_console" => ReadConsole.HandleCommand(paramsObject),
                     "execute_menu_item" => ExecuteMenuItem.HandleCommand(paramsObject),
                     "get_project_path" => GetProjectPath.HandleCommand(paramsObject),
+                    "get_unity_state" => GetCurrentState(), // New command for getting current state
                     _ => throw new ArgumentException($"Unknown or unsupported command type: {command.type}")
                 };
 
+
+                
+
                 // Standard success response format
                 var response = new { status = "success", result };
+                Debug.Log($"Command '{command.type}' executed successfully with parameters: {JsonConvert.SerializeObject(response)}");
+
+
                 return JsonConvert.SerializeObject(response);
             }
             catch (Exception ex)
@@ -331,5 +375,103 @@ namespace UMCP.Editor
                 return "Could not summarize parameters";
             }
         }
+
+        #region State Change Reporting
+
+        private static void OnRunmodeChanged(UMCP.Editor.Helpers.EditorStateHelper.Runmode previousRunmode, UMCP.Editor.Helpers.EditorStateHelper.Runmode newRunmode)
+        {
+            ReportStateChange("runmode", previousRunmode.ToString(), newRunmode.ToString());
+        }
+
+        private static void OnContextChanged(UMCP.Editor.Helpers.EditorStateHelper.Context previousContext, UMCP.Editor.Helpers.EditorStateHelper.Context newContext)
+        {
+            ReportStateChange("context", previousContext.ToString(), newContext.ToString());
+        }
+
+        private static void ReportStateChange(string stateType, string previousValue, string newValue)
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var stateChange = new
+                    {
+                        type = "state_change",
+                        @params = new JObject
+                        {
+                            ["stateType"] = stateType,
+                            ["previousValue"] = previousValue,
+                            ["newValue"] = newValue,
+                            ["timestamp"] = DateTime.UtcNow.ToString("o"),
+                            ["currentRunmode"] = UMCP.Editor.Helpers.EditorStateHelper.CurrentRunmode.ToString(),
+                            ["currentContext"] = UMCP.Editor.Helpers.EditorStateHelper.CurrentContext.ToString()
+                        }
+                    };
+
+                    string stateJson = JsonConvert.SerializeObject(stateChange);
+                    
+                    // Send to all connected clients
+                    await SendStateToAllClients(stateJson);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Error reporting state change: {ex.Message}");
+                }
+            });
+        }
+
+        // Keep track of all connected clients to send state updates
+        private static readonly List<TcpClient> connectedClients = new();
+        private static readonly object clientsLock = new();
+
+        private static async Task SendStateToAllClients(string stateJson)
+        {
+            byte[] stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
+            List<TcpClient> disconnectedClients = new();
+
+            lock (clientsLock)
+            {
+                foreach (var client in connectedClients.ToList())
+                {
+                    try
+                    {
+                        if (client.Connected)
+                        {
+                            var stream = client.GetStream();
+                            stream.Write(stateBytes, 0, stateBytes.Length);
+                        }
+                        else
+                        {
+                            disconnectedClients.Add(client);
+                        }
+                    }
+                    catch
+                    {
+                        disconnectedClients.Add(client);
+                    }
+                }
+
+                // Remove disconnected clients
+                foreach (var client in disconnectedClients)
+                {
+                    connectedClients.Remove(client);
+                }
+            }
+        }
+
+        // Method to get current state (for the new MCP tool)
+        public static JObject GetCurrentState()
+        {
+            return new JObject
+            {
+                ["runmode"] = UMCP.Editor.Helpers.EditorStateHelper.CurrentRunmode.ToString(),
+                ["context"] = UMCP.Editor.Helpers.EditorStateHelper.CurrentContext.ToString(),
+                ["canModifyProjectFiles"] = UMCP.Editor.Helpers.EditorStateHelper.CanModifyProjectFiles,
+                ["isEditorResponsive"] = UMCP.Editor.Helpers.EditorStateHelper.IsEditorResponsive,
+                ["timestamp"] = DateTime.UtcNow.ToString("o")
+            };
+        }
+
+        #endregion
     }
 }

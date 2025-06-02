@@ -25,6 +25,10 @@ public class UnityConnectionService : IDisposable
         _config = config.Value;
     }
     
+    // Current Unity state storage
+    private JObject? _currentUnityState;
+    private readonly object _stateLock = new();
+    
     public bool IsConnected
     {
         get
@@ -35,6 +39,20 @@ public class UnityConnectionService : IDisposable
             }
         }
     }
+    
+    public JObject? CurrentUnityState
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _currentUnityState?.DeepClone() as JObject;
+            }
+        }
+    }
+    
+    // Event for state changes
+    public event Action<JObject>? UnityStateChanged;
     
     public async Task<bool> ConnectAsync()
     {
@@ -103,6 +121,12 @@ public class UnityConnectionService : IDisposable
                 {
                     throw new Exception("Failed to verify connection with ping");
                 }
+                
+                //// Get initial state
+                //await RefreshUnityState();
+                
+                //// Start listening for state updates
+                //_ = Task.Run(ListenForStateUpdates);
                 
                 _retryCount = 0;
                 return true;
@@ -279,6 +303,108 @@ public class UnityConnectionService : IDisposable
         {
             _logger.LogError(ex, "Error during receive");
             throw;
+        }
+    }
+    
+    // Refresh Unity state by explicitly requesting it
+    public async Task RefreshUnityState()
+    {
+        try
+        {
+            var response = await SendCommandAsync("get_unity_state", null);
+            if (response != null)
+            {
+                lock (_stateLock)
+                {
+                    _currentUnityState = response;
+                }
+                UnityStateChanged?.Invoke(response);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing Unity state");
+        }
+    }
+    
+    // Listen for state updates from Unity
+    private async Task ListenForStateUpdates()
+    {
+        var buffer = new byte[4096];
+        var stateBuffer = new List<byte>();
+        
+        while (IsConnected)
+        {
+            try
+            {
+                if (_stream == null || !_stream.CanRead)
+                    break;
+                    
+                var bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length);
+                if (bytesRead == 0)
+                    break;
+                    
+                stateBuffer.AddRange(buffer.Take(bytesRead));
+                
+                // Try to parse as JSON
+                string currentText = Encoding.UTF8.GetString(stateBuffer.ToArray());
+                
+                // Check if we have a complete state change message
+                if (currentText.Contains("\"type\":\"state_change\""))
+                {
+                    try
+                    {
+                        var stateChange = JsonConvert.DeserializeObject<JObject>(currentText);
+                        if (stateChange?["type"]?.ToString() == "state_change")
+                        {
+                            var @params = stateChange["params"] as JObject;
+                            if (@params != null)
+                            {
+                                // Update current state
+                                lock (_stateLock)
+                                {
+                                    if (_currentUnityState == null)
+                                        _currentUnityState = new JObject();
+                                        
+                                    _currentUnityState["runmode"] = @params["currentRunmode"]?.ToString();
+                                    _currentUnityState["context"] = @params["currentContext"]?.ToString();
+                                    _currentUnityState["timestamp"] = @params["timestamp"]?.ToString();
+                                    
+                                    // Add change details
+                                    _currentUnityState["lastChange"] = new JObject
+                                    {
+                                        ["stateType"] = @params["stateType"],
+                                        ["previousValue"] = @params["previousValue"],
+                                        ["newValue"] = @params["newValue"]
+                                    };
+                                }
+                                
+                                _logger.LogInformation("Unity state changed: {StateType} from {Previous} to {New}",
+                                    @params["stateType"], @params["previousValue"], @params["newValue"]);
+                                    
+                                UnityStateChanged?.Invoke(_currentUnityState!);
+                            }
+                            
+                            stateBuffer.Clear();
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Not complete JSON yet, continue reading
+                    }
+                }
+                
+                // Prevent buffer from growing too large
+                if (stateBuffer.Count > 10000)
+                {
+                    stateBuffer.Clear();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in state update listener");
+                break;
+            }
         }
     }
     

@@ -47,7 +47,8 @@ builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
     .WithTools<GetProjectPathTool>()
-    .WithTools<GetServerVersionTool>();
+    .WithTools<GetServerVersionTool>()
+    .WithTools<GetUnityClientStateTool>();
 
 // Add hosted service for Unity connection lifecycle
 builder.Services.AddHostedService<UnityConnectionLifecycleService>();
