@@ -1,12 +1,11 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
-using ModelContextProtocol.Server;
 using UMCPServer.Models;
 using UMCPServer.Services;
 using UMCPServer.Tools;
 using System.Reflection;
+using Newtonsoft.Json.Linq;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -31,6 +30,7 @@ builder.Services.Configure<ServerConfiguration>(options =>
     string defaultHost = isRunningInDocker ? "host.docker.internal" : "localhost";
     options.UnityHost = Environment.GetEnvironmentVariable("UNITY_HOST") ?? defaultHost;
     options.UnityPort = int.TryParse(Environment.GetEnvironmentVariable("UNITY_PORT"), out var port) ? port : 6400;
+    options.UnityStatePort = int.TryParse(Environment.GetEnvironmentVariable("UNITY_STATE_PORT"), out var statePort) ? statePort : 6401;
     options.McpPort = int.TryParse(Environment.GetEnvironmentVariable("MCP_PORT"), out var mcpPort) ? mcpPort : 6500;
     options.ConnectionTimeoutSeconds = double.TryParse(Environment.GetEnvironmentVariable("CONNECTION_TIMEOUT"), out var timeout) ? timeout : 86400.0;
     options.BufferSize = int.TryParse(Environment.GetEnvironmentVariable("BUFFER_SIZE"), out var bufferSize) ? bufferSize : 16 * 1024 * 1024;
@@ -41,6 +41,7 @@ builder.Services.Configure<ServerConfiguration>(options =>
 
 // Register services
 builder.Services.AddSingleton<UnityConnectionService>();
+builder.Services.AddSingleton<UnityStateConnectionService>();
 
 // Register MCP server with tools
 builder.Services
@@ -95,15 +96,18 @@ public class UnityConnectionLifecycleService : BackgroundService
 {
     private readonly ILogger<UnityConnectionLifecycleService> _logger;
     private readonly UnityConnectionService _unityConnection;
+    private readonly UnityStateConnectionService _unityStateConnection;
     private readonly ServerConfiguration _config;
     
     public UnityConnectionLifecycleService(
         ILogger<UnityConnectionLifecycleService> logger,
         UnityConnectionService unityConnection,
+        UnityStateConnectionService unityStateConnection,
         Microsoft.Extensions.Options.IOptions<ServerConfiguration> config)
     {
         _logger = logger;
         _unityConnection = unityConnection;
+        _unityStateConnection = unityStateConnection;
         _config = config.Value;
     }
     
@@ -125,13 +129,15 @@ public class UnityConnectionLifecycleService : BackgroundService
             _logger.LogInformation("4. Container has proper network configuration (host.docker.internal maps to host)");
         }
         
-        if (await _unityConnection.ConnectAsync())
+        // Connect to main command port
+        bool commandConnected = await _unityConnection.ConnectAsync();
+        if (commandConnected)
         {
-            _logger.LogInformation("Successfully connected to Unity Editor on startup");
+            _logger.LogInformation("Successfully connected to Unity Editor command port on startup");
         }
         else
         {
-            _logger.LogWarning("Could not connect to Unity Editor on startup. Connection will be attempted when needed.");
+            _logger.LogWarning("Could not connect to Unity Editor command port on startup. Connection will be attempted when needed.");
             
             if (_config.IsRunningInContainer)
             {
@@ -139,14 +145,44 @@ public class UnityConnectionLifecycleService : BackgroundService
             }
         }
         
+        // Connect to state port
+        _logger.LogInformation("Attempting to connect to Unity state port at {UnityHost}:{UnityStatePort}...", 
+            _config.UnityHost, _config.UnityStatePort);
+            
+        bool stateConnected = await _unityStateConnection.ConnectAsync();
+        if (stateConnected)
+        {
+            _logger.LogInformation("Successfully connected to Unity state port on startup");
+            
+            // Subscribe to state changes
+            _unityStateConnection.UnityStateChanged += OnUnityStateChanged;
+        }
+        else
+        {
+            _logger.LogWarning("Could not connect to Unity state port on startup. State updates will not be available.");
+        }
+        
         // Keep the service running
         await Task.Delay(Timeout.Infinite, stoppingToken);
+    }
+    
+    private void OnUnityStateChanged(JObject state)
+    {
+        _logger.LogInformation("Unity state update received: runmode={Runmode}, context={Context}",
+            state["runmode"], state["context"]);
     }
     
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("UMCP MCP Server shutting down");
+        
+        // Unsubscribe from state changes
+        _unityStateConnection.UnityStateChanged -= OnUnityStateChanged;
+        
+        // Dispose connections
         _unityConnection.Dispose();
+        _unityStateConnection.Dispose();
+        
         await base.StopAsync(cancellationToken);
     }
 }

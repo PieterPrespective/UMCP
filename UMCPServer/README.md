@@ -9,6 +9,7 @@ This server acts as a bridge between MCP clients and the Unity Editor. It forwar
 ## Features
 
 - **Unity Connection Management**: Automatically connects to Unity Editor on startup with reconnection support
+- **Separate State Connection**: Dedicated TCP port for Unity state updates (runmode and context)
 - **GetProjectPath Tool**: Retrieves Unity project paths including:
   - Project path
   - Data path
@@ -16,6 +17,8 @@ This server acts as a bridge between MCP clients and the Unity Editor. It forwar
   - Streaming assets path
   - Temporary cache path
 - **GetServerVersion Tool**: Returns the version information of the MCP server
+- **GetUnityClientState Tool**: Returns the current Unity Editor state (runmode and context)
+- **Real-time State Updates**: Receives Unity state changes via dedicated state port
 - **Timeout Handling**: Configurable timeout for Unity responses
 - **Docker Support**: Can be run in a Docker container
 - **Environment Configuration**: All settings can be configured via environment variables
@@ -33,7 +36,8 @@ The server can be configured using environment variables:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `UNITY_HOST` | Unity TCP server host | `localhost` |
-| `UNITY_PORT` | Unity TCP server port | `6400` |
+| `UNITY_PORT` | Unity TCP command port | `6400` |
+| `UNITY_STATE_PORT` | Unity TCP state port | `6401` |
 | `MCP_PORT` | MCP server port | `6500` |
 | `CONNECTION_TIMEOUT` | Connection timeout in seconds | `86400` (24 hours) |
 | `BUFFER_SIZE` | TCP buffer size in bytes | `16777216` (16MB) |
@@ -51,6 +55,7 @@ The server can be configured using environment variables:
 ### Run the container:docker run -it --rm \
   -e UNITY_HOST=host.docker.internal \
   -e UNITY_PORT=6400 \
+  -e UNITY_STATE_PORT=6401 \
   umcpserver
 Note: Use `host.docker.internal` as the Unity host when running in Docker on Windows/Mac to connect to Unity running on the host machine.
 
@@ -75,9 +80,11 @@ See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes between versions
 The server consists of:
 
 - **Program.cs**: Main entry point, sets up dependency injection and hosting
-- **UnityConnectionService**: Manages TCP connection to Unity Editor
+- **UnityConnectionService**: Manages TCP connection to Unity Editor for commands
+- **UnityStateConnectionService**: Manages separate TCP connection for Unity state updates
 - **GetProjectPathTool**: MCP tool that retrieves Unity project paths
 - **GetServerVersionTool**: MCP tool that retrieves server version information
+- **GetUnityClientStateTool**: MCP tool that retrieves Unity Editor state
 - **Models**: Data models for Unity communication
 - **Services**: Service layer for Unity connection management
 

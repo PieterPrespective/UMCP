@@ -1,16 +1,19 @@
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
-using UnityEditor;
-using UnityEngine;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System.IO;
 using UMCP.Editor.Models;
+using UMCP.Editor.Settings;
 using UMCP.Editor.Tools;
+using UnityEditor;
+using UnityEditor.PackageManager;
+using UnityEngine;
 
 namespace UMCP.Editor
 {
@@ -18,13 +21,21 @@ namespace UMCP.Editor
     public static partial class UMCPBridge
     {
         // State change notification
-        private static TcpClient stateReportClient;
-        private static NetworkStream stateReportStream;
+        private static TcpListener stateListener;
+        private static readonly List<TcpClient> stateClients = new();
+
+        private static SemaphoreSlim stateSemaphore = new(1, 1); // Semaphore to control
+        
+        // Main command handling
         private static TcpListener listener;
         private static bool isRunning = false;
         private static readonly object lockObj = new();
         private static Dictionary<string, (string commandJson, TaskCompletionSource<string> tcs)> commandQueue = new();
-        private static readonly int unityPort = 6400;  // Hardcoded port
+        
+        // Port configuration from settings
+        private static int UnityPort => UMCPSettings.Instance.CommandPort;
+        private static int StatePort => UMCPSettings.Instance.StatePort;
+        private static IPAddress BindAddress => IPAddress.Parse(UMCPSettings.Instance.BindAddress);
 
         public static bool IsRunning => isRunning;
 
@@ -54,32 +65,57 @@ namespace UMCP.Editor
         {
             if (isRunning) return;
             isRunning = true;
-            listener = new TcpListener(IPAddress.Loopback, unityPort);
+            
+            // Start main command listener
+            listener = new TcpListener(BindAddress, UnityPort);
             listener.Start();
-            Debug.Log($"UMCPBridge started on port {unityPort}.");
+            Debug.Log($"UMCPBridge command listener started on {BindAddress}:{UnityPort}.");
+            
+            // Start state listener on separate port
+            stateListener = new TcpListener(BindAddress, StatePort);
+            stateListener.Start();
+            Debug.Log($"UMCPBridge state listener started on {BindAddress}:{StatePort}.");
+            
             Task.Run(ListenerLoop);
+            Task.Run(StateListenerLoop);
             EditorApplication.update += ProcessCommands;
         }
 
-        public static void Stop()
+        public static async void Stop()
         {
             if (!isRunning) return;
             isRunning = false;
-            listener.Stop();
+            
+            // Stop listeners
+            listener?.Stop();
+            stateListener?.Stop();
+            
             EditorApplication.update -= ProcessCommands;
             
             // Unsubscribe from state changes
             UMCP.Editor.Helpers.EditorStateHelper.OnRunmodeChanged -= OnRunmodeChanged;
             UMCP.Editor.Helpers.EditorStateHelper.OnContextChanged -= OnContextChanged;
-            
-            // Close state report connection
+
+            // Close all state client connections
+
+            await stateSemaphore.WaitAsync();
             try
             {
-                stateReportStream?.Close();
-                stateReportClient?.Close();
+                foreach (var client in stateClients)
+                {
+                    try
+                    {
+                        client.Close();
+                    }
+                    catch { }
+                }
+                stateClients.Clear();
             }
-            catch { }
-            
+            finally
+            {
+                stateSemaphore.Release();
+            }
+
             Debug.Log("UMCPBridge stopped.");
         }
 
@@ -94,7 +130,7 @@ namespace UMCP.Editor
                     client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
                     // Set longer receive timeout to prevent quick disconnections
-                    client.ReceiveTimeout = 60000; // 60 seconds
+                    client.ReceiveTimeout = UMCPSettings.Instance.SocketTimeout * 1000; // Convert to milliseconds
 
                     // Fire and forget each client connection
                     _ = HandleClientAsync(client);
@@ -102,6 +138,57 @@ namespace UMCP.Editor
                 catch (Exception ex)
                 {
                     if (isRunning) Debug.LogError($"Listener error: {ex.Message}");
+                }
+            }
+        }
+
+        private static async Task StateListenerLoop()
+        {
+            while (isRunning)
+            {
+                try
+                {
+                    var client = await stateListener.AcceptTcpClientAsync();
+                    client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                    client.SendTimeout = UMCPSettings.Instance.StateSendTimeout * 1000; // Convert to milliseconds
+
+                    await stateSemaphore.WaitAsync();
+                    try
+                    {
+                        stateClients.Add(client);
+                    }
+                    finally
+                    {
+                        stateSemaphore.Release();
+                    }
+
+                    
+                    Debug.Log($"State client connected from {client.Client.RemoteEndPoint}");
+                    
+                    // Send initial state immediately
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var initialState = new
+                            {
+                                type = "state_update",
+                                @params = GetCurrentState()
+                            };
+                            var stateJson = JsonConvert.SerializeObject(initialState);
+                            var stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
+                            var stream = client.GetStream();
+                            await stream.WriteAsync(stateBytes, 0, stateBytes.Length);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogError($"Error sending initial state: {ex.Message}");
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    if (isRunning) Debug.LogError($"State listener error: {ex.Message}");
                 }
             }
         }
@@ -410,8 +497,8 @@ namespace UMCP.Editor
 
                     string stateJson = JsonConvert.SerializeObject(stateChange);
                     
-                    // Send to all connected clients
-                    await SendStateToAllClients(stateJson);
+                    // Send to all connected state clients (on the separate port)
+                    await SendStateToStateClients(stateJson);
                 }
                 catch (Exception ex)
                 {
@@ -424,29 +511,32 @@ namespace UMCP.Editor
         private static readonly List<TcpClient> connectedClients = new();
         private static readonly object clientsLock = new();
 
-        private static async Task SendStateToAllClients(string stateJson)
+        private static async Task SendStateToStateClients(string stateJson)
         {
             byte[] stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
             List<TcpClient> disconnectedClients = new();
 
-            lock (clientsLock)
+            await stateSemaphore.WaitAsync();
+            try
             {
-                foreach (var client in connectedClients.ToList())
+                foreach (var client in stateClients.ToList())
                 {
                     try
                     {
                         if (client.Connected)
                         {
                             var stream = client.GetStream();
-                            stream.Write(stateBytes, 0, stateBytes.Length);
+                            await stream.WriteAsync(stateBytes, 0, stateBytes.Length);
+                            Debug.Log($"State update sent to {client.Client.RemoteEndPoint}");
                         }
                         else
                         {
                             disconnectedClients.Add(client);
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        Debug.LogError($"Error sending state to client: {ex.Message}");
                         disconnectedClients.Add(client);
                     }
                 }
@@ -454,8 +544,13 @@ namespace UMCP.Editor
                 // Remove disconnected clients
                 foreach (var client in disconnectedClients)
                 {
-                    connectedClients.Remove(client);
+                    stateClients.Remove(client);
+                    client.Close();
                 }
+            }
+            finally
+            {
+                stateSemaphore.Release();
             }
         }
 

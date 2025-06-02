@@ -5,6 +5,7 @@ public class ServerConfiguration
     // Network settings
     public string UnityHost { get; set; } = "localhost";
     public int UnityPort { get; set; } = 6400;
+    public int UnityStatePort { get; set; } = 6401; // Separate port for state updates
     public int McpPort { get; set; } = 6500;
     
     // Connection settings
