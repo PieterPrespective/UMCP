@@ -99,7 +99,11 @@ namespace UMCP.Editor.Tools
                  return Response.Error("ReadConsole handler failed to initialize due to reflection errors. Cannot access console logs.");
              }
 
-            string action = @params["action"]?.ToString().ToLower() ?? "get";
+            string action = "get"; // Default action if not specified
+            if (@params != null)
+            {
+                action = @params["action"]?.ToString().ToLower() ?? "get";
+            }
 
             try
             {
@@ -110,12 +114,44 @@ namespace UMCP.Editor.Tools
                 else if (action == "get")
                 {
                     // Extract parameters for 'get'
-                    var types = (@params["types"] as JArray)?.Select(t => t.ToString().ToLower()).ToList() ?? new List<string> { "error", "warning", "log" };
-                    int? count = @params["count"]?.ToObject<int?>();
-                    string filterText = @params["filterText"]?.ToString();
-                    string sinceTimestampStr = @params["sinceTimestamp"]?.ToString(); // TODO: Implement timestamp filtering
-                    string format = (@params["format"]?.ToString() ?? "detailed").ToLower();
-                    bool includeStacktrace = @params["includeStacktrace"]?.ToObject<bool?>() ?? true;
+                    var types = new List<string> { "error", "warning", "log" };
+                    if (@params != null)
+                    {
+                        types = (@params["types"] as JArray)?.Select(t => t.ToString().ToLower()).ToList() ?? new List<string> { "error", "warning", "log" };
+                    }
+
+
+                    int? count = null;
+                    if(@params != null)
+                    {
+                        count = @params["count"]?.ToObject<int?>();
+                    }
+
+
+                    string filterText = "";
+                    if (@params != null)
+                    {
+                        filterText = @params["filterText"]?.ToString();
+                    }
+
+
+                    string sinceTimestampStr = ""; // TODO: Implement timestamp filtering
+                    if (@params != null)
+                    {
+                        sinceTimestampStr = @params["since_timestamp"]?.ToString();
+                    }
+
+                    string format = "detailed";
+                    if(@params != null)
+                    {
+                        format = (@params["format"]?.ToString() ?? "detailed").ToLower();
+                    }
+
+                    bool includeStacktrace = true;
+                    if (@params != null)
+                    {
+                        includeStacktrace = @params["includeStacktrace"]?.ToObject<bool?>() ?? true;
+                    }
 
                     if (types.Contains("all")) {
                         types = new List<string> { "error", "warning", "log" }; // Expand 'all'
@@ -159,7 +195,26 @@ namespace UMCP.Editor.Tools
 
         private static object GetConsoleEntries(List<string> types, int? count, string filterText, string format, bool includeStacktrace)
         {
-             List<object> formattedEntries = new List<object>();
+             if (types == null || types.Count == 0)
+             {
+                 return Response.Error("No log types specified. Valid types are 'error', 'warning', 'log'.");
+             }
+
+             if (count.HasValue)
+             {
+                if(count < 0)
+                {
+                    return Response.Error("Count must be a positive integer.");
+                }
+                else if (count == 0)
+                {
+                    return Response.Success("No log entries requested, returning empty list.", new List<object>());
+                }
+            }
+
+
+
+            List<object> formattedEntries = new List<object>();
              int retrievedCount = 0;
 
              try

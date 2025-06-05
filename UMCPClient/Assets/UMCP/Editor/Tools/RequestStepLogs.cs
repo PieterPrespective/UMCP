@@ -38,7 +38,7 @@ namespace UMCP.Editor.Tools
                 
                 // Extract the logs data
                 dynamic logsResponse = allLogsResult;
-                if (logsResponse.status != "success" || logsResponse.data == null)
+                if (logsResponse.success == false || logsResponse.data == null)
                 {
                     return Response.Error("Failed to retrieve console logs.");
                 }
