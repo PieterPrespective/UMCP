@@ -416,6 +416,8 @@ namespace UMCP.Editor
                     "execute_menu_item" => ExecuteMenuItem.HandleCommand(paramsObject),
                     "get_project_path" => GetProjectPath.HandleCommand(paramsObject),
                     "get_unity_state" => GetCurrentState(), // New command for getting current state
+                    "mark_start_of_new_step" => MarkStartOfNewStep.HandleCommand(paramsObject),
+                    "request_step_logs" => RequestStepLogs.HandleCommand(paramsObject),
                     _ => throw new ArgumentException($"Unknown or unsupported command type: {command.type}")
                 };
 

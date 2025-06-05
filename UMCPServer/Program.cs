@@ -6,6 +6,7 @@ using UMCPServer.Services;
 using UMCPServer.Tools;
 using System.Reflection;
 using Newtonsoft.Json.Linq;
+using UMCPServer.Prompts;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -47,11 +48,16 @@ builder.Services.AddSingleton<UnityStateConnectionService>();
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
+    .WithPrompts<ServerPrompts>()
+    .WithTools<ExecuteMenuItemTool>()
     .WithTools<GetProjectPathTool>()
     .WithTools<GetServerVersionTool>()
     .WithTools<GetUnityClientStateTool>()
-    .WithTools<ExecuteMenuItemTool>()
-    .WithTools<ManageSceneTool>();
+    .WithTools<ManageSceneTool>()
+    .WithTools<MarkStartOfNewStepTool>()
+    .WithTools<ReadConsoleTool>()
+    .WithTools<RequestStepLogsTool>();
+    
 
 // Add hosted service for Unity connection lifecycle
 builder.Services.AddHostedService<UnityConnectionLifecycleService>();
