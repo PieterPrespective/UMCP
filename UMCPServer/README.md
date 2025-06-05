@@ -18,6 +18,7 @@ This server acts as a bridge between MCP clients and the Unity Editor. It forwar
   - Temporary cache path
 - **GetServerVersion Tool**: Returns the version information of the MCP server
 - **GetUnityClientState Tool**: Returns the current Unity Editor state (runmode and context)
+- **ForceUpdateEditor Tool**: Forces Unity Editor to update regardless of focus; exits PlayMode if necessary and waits for EditMode_Running state
 - **Real-time State Updates**: Receives Unity state changes via dedicated state port
 - **Timeout Handling**: Configurable timeout for Unity responses
 - **Docker Support**: Can be run in a Docker container
@@ -85,6 +86,7 @@ The server consists of:
 - **GetProjectPathTool**: MCP tool that retrieves Unity project paths
 - **GetServerVersionTool**: MCP tool that retrieves server version information
 - **GetUnityClientStateTool**: MCP tool that retrieves Unity Editor state
+- **ForceUpdateEditorTool**: MCP tool that forces Unity Editor updates and handles PlayMode transitions
 - **Models**: Data models for Unity communication
 - **Services**: Service layer for Unity connection management
 

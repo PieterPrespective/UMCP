@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial setup of versioning and changelog
 - GetServerVersionTool to retrieve server version information
+- ForceUpdateEditorTool to force Unity Editor updates and handle PlayMode transitions
+- Async state monitoring with 30-second timeout for ForceUpdateEditor operations
+- Enhanced Unity Client tool for forced editor updates with automatic PlayMode exit
 
 ## [0.1.0-alpha] - 2024-07-13
 

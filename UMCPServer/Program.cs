@@ -56,8 +56,9 @@ builder.Services
     .WithTools<ManageSceneTool>()
     .WithTools<MarkStartOfNewStepTool>()
     .WithTools<ReadConsoleTool>()
-    .WithTools<RequestStepLogsTool>();
-    
+    .WithTools<RequestStepLogsTool>()
+    .WithTools<ForceUpdateEditorTool>();
+
 
 // Add hosted service for Unity connection lifecycle
 builder.Services.AddHostedService<UnityConnectionLifecycleService>();
