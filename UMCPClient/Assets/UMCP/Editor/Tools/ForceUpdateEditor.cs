@@ -11,10 +11,27 @@ namespace UMCP.Editor.Tools
     /// </summary>
     public static class ForceUpdateEditor
     {
+        private static bool isUpdating = false;
+        private static readonly object updateLock = new object();
         public static object HandleCommand(JObject @params)
         {
             try
             {
+                // Prevent recursive calls
+                lock (updateLock)
+                {
+                    if (isUpdating)
+                    {
+                        Debug.LogWarning("[ForceUpdateEditor] Update already in progress, skipping duplicate request");
+                        return Response.Success("ForceUpdateEditor skipped - update already in progress", new
+                        {
+                            skipped = true,
+                            reason = "update_already_in_progress"
+                        });
+                    }
+                    isUpdating = true;
+                }
+                
                 Debug.Log("[ForceUpdateEditor] Starting editor update process");
                 
                 // Check current state
@@ -41,17 +58,37 @@ namespace UMCP.Editor.Tools
                     PerformEditorUpdate();
                 }
                 
-                return Response.Success("ForceUpdateEditor initiated successfully.", new
+                var finalState = new
                 {
-                    initialRunmode = currentRunmode.ToString(),
-                    initialContext = currentContext.ToString(),
-                    action = currentRunmode == EditorStateHelper.Runmode.PlayMode ? "exiting_playmode" : "updating_editor"
+                    runmode = EditorStateHelper.CurrentRunmode.ToString(),
+                    context = EditorStateHelper.CurrentContext.ToString(),
+                    timestamp = DateTime.UtcNow.ToString("MM/dd/yyyy HH:mm:ss")
+                };
+                
+                return Response.Success("Unity Editor force update completed successfully", new
+                {
+                    initialState = new
+                    {
+                        runmode = currentRunmode.ToString(),
+                        context = currentContext.ToString()
+                    },
+                    finalState = finalState,
+                    action = currentRunmode == EditorStateHelper.Runmode.PlayMode ? "exiting_playmode" : "updating_editor",
+                    waitTimeMs = 0
                 });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[ForceUpdateEditor] Failed to force update editor: {e}");
                 return Response.Error($"Failed to force update editor: {e.Message}");
+            }
+            finally
+            {
+                // Always reset the flag
+                lock (updateLock)
+                {
+                    isUpdating = false;
+                }
             }
         }
         
@@ -61,32 +98,42 @@ namespace UMCP.Editor.Tools
             {
                 Debug.Log("[ForceUpdateEditor] Performing editor update operations");
 
-                // Force Unity Editor to update regardless of focus
-                EditorApplication.update();
-                
-                // Refresh asset database to ensure all assets are up to date
-                AssetDatabase.Refresh();
-                
-                // Mark scene as dirty to trigger any necessary updates
-                var activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-                if (activeScene.IsValid())
+
+                if(!EditorApplication.isUpdating)
                 {
-                    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(activeScene);
-                }
-                
-                // Force a repaint of all editor windows
-                EditorApplication.delayCall += () =>
-                {
-                    var windows = Resources.FindObjectsOfTypeAll<EditorWindow>();
-                    foreach (var window in windows)
+                    // Refresh asset database to ensure all assets are up to date
+                    AssetDatabase.Refresh();
+
+                    // Mark scene as dirty to trigger any necessary updates
+                    var activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+                    if (activeScene.IsValid())
                     {
-                        if (window != null)
-                        {
-                            window.Repaint();
-                        }
+                        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(activeScene);
                     }
-                };
-                
+
+                    // Force a repaint of all editor windows using delayCall to avoid recursion
+                    EditorApplication.delayCall += () =>
+                    {
+                        try
+                        {
+                            var windows = Resources.FindObjectsOfTypeAll<EditorWindow>();
+                            foreach (var window in windows)
+                            {
+                                if (window != null)
+                                {
+                                    window.Repaint();
+                                    EditorUtility.SetDirty(window);
+                                }
+                            }
+                            // Force Unity to process pending operations
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogError($"[ForceUpdateEditor] Error during delayed update: {e}");
+                        }
+                    };
+                }
+
                 // Refresh the state helper to ensure we have the latest state
                 EditorStateHelper.RefreshState();
                 

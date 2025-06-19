@@ -1,3 +1,5 @@
+#if UNITY_EDITOR
+
 using UnityEngine;
 using UnityEditor;
 using UMCP.Editor.Tools;
@@ -226,3 +228,4 @@ namespace UMCP.Examples
         }
     }
 }
+#endif // UNITY_EDITOR

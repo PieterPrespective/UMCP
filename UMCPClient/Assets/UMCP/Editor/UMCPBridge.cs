@@ -324,6 +324,17 @@ namespace UMCP.Editor
                         }
                         else
                         {
+                            // Enhanced protection against recursive force_update_editor calls
+                            if (command.type != null && command.type == "force_update_editor")
+                            {
+                                // Skip if editor is updating OR if another force update is already running
+                                if (EditorApplication.isUpdating)
+                                {
+                                    Debug.LogWarning($"[UMCPBridge] Skipping force_update_editor command - editor is currently updating");
+                                    continue;
+                                }
+                            }
+
                             string responseJson = ExecuteCommand(command);
                             tcs.SetResult(responseJson);
                         }
@@ -401,6 +412,10 @@ namespace UMCP.Editor
 
                 // Use JObject for parameters as the new handlers likely expect this
                 JObject paramsObject = command.@params ?? new JObject();
+
+                
+
+
 
                 // Route command based on the new tool structure from the refactor plan
                 object result = command.type switch
