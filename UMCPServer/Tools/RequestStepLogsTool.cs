@@ -74,7 +74,7 @@ public class RequestStepLogsTool
                 };
             }
             
-            // Extract the response data
+            // Extract the response data - Fix: data is nested in result object
             var status = response.Value<string>("status");
             if (status == "error")
             {
@@ -85,15 +85,18 @@ public class RequestStepLogsTool
                 };
             }
             
+            // Get the result object which contains the actual data
+            var result = response["result"];
             var message = response.Value<string>("message");
-            var data = response["data"];
-            
+            var data = response.Value<JArray>("data");
+            List<object> dynamicData = (data != null) ? data.Select(ReadConsoleTool.ConvertJTokenToObjectSmart).ToList() : new List<object>();
+
             return new
             {
                 success = true,
                 message = message ?? $"Retrieved logs for step '{stepName}'",
                 stepName = stepName,
-                entries = data,
+                entries = dynamicData,
                 count = data?.Count() ?? 0
             };
         }

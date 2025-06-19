@@ -231,15 +231,34 @@ namespace UMCP.Editor.Tools
                  for (int i = 0; i < totalEntries; i++)
                  {
                      // Get the entry data into our instance using reflection
-                     _getEntryMethod.Invoke(null, new object[] { i, logEntryInstance });
+                     try
+                     {
+                         _getEntryMethod.Invoke(null, new object[] { i, logEntryInstance });
+                     }
+                     catch (Exception ex)
+                     {
+                         Debug.LogError($"[ReadConsole] Failed to get entry {i}: {ex.Message}");
+                         continue;
+                     }
 
-                     // Extract data using reflection
-                     int mode = (int)_modeField.GetValue(logEntryInstance);
-                     string message = (string)_messageField.GetValue(logEntryInstance);
-                     string file = (string)_fileField.GetValue(logEntryInstance);
-
-                     int line = (int)_lineField.GetValue(logEntryInstance);
-                     // int instanceId = (int)_instanceIdField.GetValue(logEntryInstance);
+                     // Extract data using reflection with error handling
+                     int mode;
+                     string message;
+                     string file;
+                     int line;
+                     
+                     try
+                     {
+                         mode = (int)(_modeField.GetValue(logEntryInstance) ?? 0);
+                         message = (string)(_messageField.GetValue(logEntryInstance) ?? "");
+                         file = (string)(_fileField.GetValue(logEntryInstance) ?? "");
+                         line = (int)(_lineField.GetValue(logEntryInstance) ?? 0);
+                     }
+                     catch (Exception ex)
+                     {
+                         Debug.LogError($"[ReadConsole] Failed to extract data from log entry {i}: {ex.Message}");
+                         continue;
+                     }
 
                      if (string.IsNullOrEmpty(message)) continue; // Skip empty messages
 
@@ -273,18 +292,26 @@ namespace UMCP.Editor.Tools
                          case "json":
                          case "detailed": // Treat detailed as json for structured return
                          default:
-                             formattedEntry = new {
+                             // Create anonymous object for better compatibility
+                             formattedEntry = new
+                             {
                                  type = currentType.ToString(),
-                                 message = messageOnly,
-                                 file = file,
+                                 message = messageOnly ?? "",
+                                 file = file ?? "",
                                  line = line,
-                                 // timestamp = "", // TODO
-                                 stackTrace = stackTrace // Will be null if includeStacktrace is false or no stack found
+                                 stackTrace = stackTrace
                              };
                              break;
                      }
 
-                     formattedEntries.Add(formattedEntry);
+                     if (formattedEntry != null)
+                     {
+                         formattedEntries.Add(formattedEntry);
+                     }
+                     else
+                     {
+                         Debug.LogError($"[ReadConsole] Failed to create formatted entry for message: {messageOnly}");
+                     }
                      retrievedCount++;
 
                      // Apply count limit (after filtering)
@@ -310,7 +337,7 @@ namespace UMCP.Editor.Tools
              }
 
             // Return the filtered and formatted list (might be empty)
-             return Response.Success($"Retrieved {formattedEntries.Count} log entries.", formattedEntries);
+            return Response.Success($"Retrieved {formattedEntries.Count} log entries.", formattedEntries);
         }
 
         // --- Internal Helpers ---

@@ -108,22 +108,34 @@ public class ReadConsoleTool
             // For 'clear' action, return simple success message
             if (action == "clear")
             {
+                // For clear action, message might be at root level or in result
+                var clearMessage = response.Value<string>("message") ?? response["result"]?.Value<string>("message");
                 return new
                 {
                     success = true,
-                    message = response.Value<string>("message") ?? "Console cleared successfully"
+                    message = clearMessage ?? "Console cleared successfully"
                 };
             }
             
-            // For 'get' action, return the log entries
+            // For 'get' action, return the log entries - Fix: data is nested in result object
+            var result = response["result"];
             var message = response.Value<string>("message");
-            var data = response["data"];
-            
+            var data = response.Value<JArray>("data");
+
+            // Method 1: Simple conversion
+            List<object> dynamicData = (data != null) ? data.Select(ConvertJTokenToObjectSmart).ToList() : new List<object>();
+
+
+
+            //dynamic[] dynamicData = ((data?.Count() ?? 0) > 0) ? data.Select(d => (dynamic)d).ToArray() : new dynamic[0];
+            //result?.Value<string>("message");
+            //var data = result?["data"];
+
             return new
             {
                 success = true,
-                message = message ?? "Log entries retrieved successfully",
-                entries = data,
+                message = message ?? "Log entries retrieved successfully" /*: '" + response.ToString() + "'"*/,
+                entries = dynamicData,
                 count = data?.Count() ?? 0
             };
         }
@@ -155,4 +167,57 @@ public class ReadConsoleTool
             };
         }
     }
+
+    public static object ConvertJTokenToObjectSmart(JToken token)
+    {
+        switch (token.Type)
+        {
+            case JTokenType.Object:
+                var dict = new Dictionary<string, object>();
+                foreach (JProperty prop in token.Children<JProperty>())
+                {
+                    dict[prop.Name] = ConvertJTokenToObjectSmart(prop.Value);
+                }
+                return dict;
+
+            case JTokenType.Array:
+                return token.Select(ConvertJTokenToObjectSmart).ToList();
+
+            case JTokenType.Integer:
+                var intValue = token.Value<long>();
+                // Return int if it fits, otherwise long
+                return intValue >= int.MinValue && intValue <= int.MaxValue
+                    ? (object)(int)intValue
+                    : intValue;
+
+            case JTokenType.Float:
+                // Try to preserve precision
+                var floatStr = token.ToString();
+                if (decimal.TryParse(floatStr, out decimal decValue))
+                    return decValue;
+                return token.Value<double>();
+
+            case JTokenType.String:
+                var strValue = token.Value<string>();
+                // Optionally try to parse known formats
+                if (DateTime.TryParse(strValue, out DateTime dateValue))
+                    return dateValue;
+                if (Guid.TryParse(strValue, out Guid guidValue))
+                    return guidValue;
+                return strValue;
+
+            case JTokenType.Boolean:
+                return token.Value<bool>();
+
+            case JTokenType.Date:
+                return token.Value<DateTime>();
+
+            case JTokenType.Null:
+                return null;
+
+            default:
+                return token.Value<string>();
+        }
+    }
+
 }
