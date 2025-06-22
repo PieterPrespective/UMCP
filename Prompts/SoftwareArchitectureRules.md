@@ -1,0 +1,16 @@
+## Software Architecture Rules
+- Don’t change code outside of the folders you are tasked to work within, and/or are described as part of the assignment variables; if code outside these folder(s) needs changing first ask confirmation of the user
+- apply boyscout rule - leave all code better than how you found it - but only refactor if on the critical path of your current assignment
+- Add Summaries to all classes and class members you create, make sure to make them descriptive. If you update the functioning of a class member update the summary
+	- If you create any complex code sections within a member, be sure to add a short explanatory comment in the line above, or behind
+- When architecting code structures (classes, structs), prefer to keep processing logic out of the data (apply functional programming whenever possible)
+	- create a data struct with just fields, properties and a optionally a constructor and/or destructor
+	- create a static utility class (generally named [datastructname]Utility) that contains all processing logic functions as static functions
+		- Be mindfull of accessiblity - if tools are only accessed locally mark them private, or internal if they are targeted by a (unit)test
+	- If functions require upwards of 4 parameters to function, create a custom data struct to forward data to that function
+- Whenever possible - create tests for the functions you create to validate that they work in an atomic fashion. 
+	- please be descriptive in the test functions' summary on what exactly is tested. If possible, use test fixtures and cases for variant testing
+	- within the Unity Client project these must be located within the 'UCMP Client Editor Test Folder'. Note that these tests make use of NUnit
+	- within the Unity Server project these must be located within the 'UMCP MCP Server Tests' project. 
+		- Note that any (integration) tests created should be part of a batched invocation of all (integration) tests, but it should also be invocable individually from the commandline (please include a short readme per test on how to invoke)
+		- All integration tests Should access the server tools using mcp interface, not direct class invocation

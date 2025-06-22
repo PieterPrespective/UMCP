@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__chroma__chroma_list_collections",
+      "mcp__chroma__chroma_create_collection",
+      "mcp__chroma__chroma_add_documents",
+      "Bash(mkdir:*)",
+      "Bash(dotnet build)",
+      "Bash(dotnet test:*)",
+      "Bash(grep:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "chroma"
+  ]
+}

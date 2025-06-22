@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
 WORKDIR /app
 
 # Copy project file and restore dependencies
-COPY UMCPServer.csproj .
+COPY UMCPServer/UMCPServer.csproj .
 RUN dotnet restore
 
 # Copy source code and build
@@ -23,7 +23,7 @@ LABEL version="1.0"
 ENV UNITY_HOST=host.docker.internal
 ENV UNITY_PORT=6400
 ENV MCP_PORT=6500
-ENV ENABLE_LOGGING=true
+ENV ENABLE_LOGGING=false
 ENV MAX_RETRIES=5
 ENV RETRY_DELAY=2.0
 

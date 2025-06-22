@@ -5,10 +5,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    ports:
+      - "6400:6401"
+    network_mode: host  # Simple for development
     environment:
       # Docker-specific settings
+      - DOTNET_RUNNING_IN_CONTAINER=true # Whether the MCP Server is running in a container
       - UNITY_HOST=host.docker.internal  # Maps to the host machine from within Docker
-      - UNITY_PORT=6400                  # Unity TCP Server port
+      - UNITY_PORT=6400                  # Unity TCP Command port
+      - UNITY_STATE_PORT=6401            # Unity TCP State port
       - MCP_PORT=6500                    # MCP server port
       - ENABLE_LOGGING=true              # Enable detailed logging for troubleshooting
       # Connection settings

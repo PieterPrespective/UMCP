@@ -1,0 +1,15 @@
+## Tool Integration Test
+- Should exist Within the UMCPServer.Tests project as integration test; it should be part of a batched invocation of all integration tests, but it should also be invocable individually from the commandline (please include a readme on how to invoke)
+- Should access the server tools using mcp interface
+- Should run the following asynchronous steps (Optionally use an IENumerator)
+	- Validate a Unity3D project is running with the UMCP client active
+	- Within the namespace 'UMCP.editor.integrationtests'
+		- Create a set of simple Editmode Unittests in the script 'SimpleEditModeTests'
+			- TestAddition - asserts 1 + 1 equals 2
+			- TestSubstraction - asserts 5 - 1 equals 4
+			- TestFaulty - faultily asserts 6 + 2 equals 7
+	- Recompile the created testscript using the 'ForceUpdateEditor' tool and wait for it to return
+	- Use the 'GetTestTool', test all variations of the 'Testmode' and 'Filter' input parameters, and validate (assert) the given output
+	- Use the 'RunTestTool' only on 'TestAddition' (but please also test multiple variations of the OutputTestResults and OutputLogData parameters) - be sure to validate it doesn't return a result until the test is complete
+	- Use the 'RunTestTool' only on 'TestFaulty' and assert it fails its assertion (please also test multiple variations of the OutputTestResults and OutputLogData parameters)
+	- Use the 'RunTestTool' with no filter - and assert its output - validate that TestFaulty still fails

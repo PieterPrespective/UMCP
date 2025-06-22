@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "chroma": {
+      "command": "uvx",
+      "args": [
+        "chroma-mcp",
+        "--client-type",
+        "persistent",
+        "--data-dir",
+        "/mnt/c/Prespective/250328_TestMLStuffUnity3d/ChromaDBStores"
+      ]
+    }
+  }
+}

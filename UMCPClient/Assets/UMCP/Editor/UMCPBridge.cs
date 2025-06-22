@@ -434,6 +434,8 @@ namespace UMCP.Editor
                     "force_update_editor" => ForceUpdateEditor.HandleCommand(paramsObject),
                     "mark_start_of_new_step" => MarkStartOfNewStep.HandleCommand(paramsObject),
                     "request_step_logs" => RequestStepLogs.HandleCommand(paramsObject),
+                    "get_tests" => GetTests.HandleCommand(paramsObject),
+                    "run_tests" => RunTests.HandleCommand(paramsObject),
                     _ => throw new ArgumentException($"Unknown or unsupported command type: {command.type}")
                 };
 
