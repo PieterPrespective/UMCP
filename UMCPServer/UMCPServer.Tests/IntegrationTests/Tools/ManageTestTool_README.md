@@ -64,3 +64,28 @@ The test simulates creating these Unity tests:
 - Requires mocked Unity connection service
 - Uses NUnit test framework
 - Follows IEnumerator pattern for multi-step execution
+
+## Real Unity Connection Tests
+
+### Prerequisites
+1. Unity Editor must be running with the UMCPClient project open
+2. UMCP Bridge should be running (starts automatically)
+3. Unity should be in EditMode (not PlayMode)
+
+### Running Real Unity Tests
+```bash
+# Run all tests that require Unity
+dotnet test --filter "Category=RequiresUnity"
+
+# Run only the real Unity test tool tests
+dotnet test --filter "FullyQualifiedName~ManageTestToolRealUnityTests"
+
+# Run specific real Unity test
+dotnet test --filter "FullyQualifiedName~ManageTestToolRealUnityTests.TestGetTestsWithRealUnity_ShouldNotLockEditor"
+dotnet test --filter "FullyQualifiedName~ManageTestToolRealUnityTests.TestRunTestsWithRealUnity_ShouldNotLockEditor"
+```
+
+### What These Tests Validate
+- GetTests and RunTests tools work with real Unity connection without locking the editor
+- Proper async handling prevents Unity main thread blocking
+- Test results are properly retrieved and processed

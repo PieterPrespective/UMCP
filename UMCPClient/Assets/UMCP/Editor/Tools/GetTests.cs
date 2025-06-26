@@ -121,25 +121,37 @@ namespace UMCP.Editor.Tools
         }
         
         /// <summary>
-        /// Synchronous version for backward compatibility (but may not work well from OnGUI)
+        /// Synchronous version that properly waits for async operation without blocking Unity main thread
         /// </summary>
         public static List<TestInfo> GetTestsByParameters(GetTestsParameters parameters)
         {
-            
             var tests = new List<TestInfo>();
             bool completed = false;
+            Exception error = null;
             
+            // Start async operation
             GetTestsByParametersAsync(parameters, (result) =>
             {
                 tests = result;
                 completed = true;
             });
             
-            // Simple wait for completion
+            // Wait for completion using cooperative yield to avoid blocking Unity
             var startTime = DateTime.Now;
-            while (!completed && (DateTime.Now - startTime).TotalSeconds < 15)
+            var timeout = TimeSpan.FromSeconds(15);
+            
+            while (!completed && (DateTime.Now - startTime) < timeout)
             {
-                System.Threading.Thread.Sleep(100);
+                // Use a small delay to prevent tight loop, but yield thread
+                System.Threading.Tasks.Task.Delay(10).Wait();
+                
+                // Allow other threads to run
+                System.Threading.Thread.Yield();
+            }
+            
+            if (!completed)
+            {
+                Debug.LogWarning("[GetTests] Synchronous operation timed out after 15 seconds");
             }
             
             return tests;
@@ -223,6 +235,108 @@ namespace UMCP.Editor.Tools
     public static class GetTests
     {
         /// <summary>
+        /// Recursively adds tests from the test tree to the list
+        /// </summary>
+        /// <param name="testNode">The root test node</param>
+        /// <param name="tests">The list to add tests to</param>
+        /// <param name="filter">Optional filter string</param>
+        private static void AddTestsToList(ITestAdaptor testNode, List<TestInfo> tests, string filter)
+        {
+            if (testNode == null) return;
+            
+            // Process children first (test fixtures and test methods)
+            if (testNode.Children != null)
+            {
+                foreach (var child in testNode.Children)
+                {
+                    AddTestsToList(child, tests, filter);
+                }
+            }
+            
+            // Only add actual test methods (not test fixtures/suites)
+            if (testNode.Method != null && !testNode.IsSuite)
+            {
+                var testInfo = new TestInfo
+                {
+                    TestName = testNode.FullName,
+                    TestAssembly = testNode.TestCaseCount > 0 ? testNode.FullName.Split('.')[0] : "Unknown",
+                    TestNamespace = ExtractNamespace(testNode.FullName),
+                    ContainerScript = ExtractContainerScript(testNode.FullName)
+                };
+                
+                // Apply filter if specified
+                if (string.IsNullOrEmpty(filter) || 
+                    testInfo.TestName.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    testInfo.TestNamespace.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    tests.Add(testInfo);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Extracts the namespace from a full test name
+        /// </summary>
+        private static string ExtractNamespace(string fullName)
+        {
+            var lastDotIndex = fullName.LastIndexOf('.');
+            if (lastDotIndex > 0)
+            {
+                var nameWithoutMethod = fullName.Substring(0, lastDotIndex);
+                var secondLastDotIndex = nameWithoutMethod.LastIndexOf('.');
+                if (secondLastDotIndex > 0)
+                {
+                    return nameWithoutMethod.Substring(0, secondLastDotIndex);
+                }
+            }
+            return string.Empty;
+        }
+        
+        /// <summary>
+        /// Extracts the container script name from a full test name
+        /// </summary>
+        private static string ExtractContainerScript(string fullName)
+        {
+            var parts = fullName.Split('.');
+            if (parts.Length >= 2)
+            {
+                return parts[parts.Length - 2];
+            }
+            return string.Empty;
+        }
+        
+        /// <summary>
+        /// Determines if a test should be included based on filter and TestMode parameters
+        /// </summary>
+        private static bool ShouldIncludeTest(TestInfo testInfo, GetTestsParameters parameters)
+        {
+            // Apply filter if specified
+            if (!string.IsNullOrEmpty(parameters.Filter))
+            {
+                if (testInfo.TestName.IndexOf(parameters.Filter, StringComparison.OrdinalIgnoreCase) < 0 &&
+                    testInfo.TestNamespace.IndexOf(parameters.Filter, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    return false;
+                }
+            }
+            
+            // Check TestMode filter
+            bool isEditModeTest = testInfo.TestAssembly.Contains("Editor") || 
+                                testInfo.TestNamespace.Contains("Editor") ||
+                                testInfo.TestAssembly.Contains("Tests.Editor");
+            bool isPlayModeTest = !isEditModeTest;
+            
+            if (parameters.TestMode == "All" ||
+                (parameters.TestMode == "EditMode" && isEditModeTest) ||
+                (parameters.TestMode == "PlayMode" && isPlayModeTest))
+            {
+                return true;
+            }
+            
+            return false;
+        }
+
+        /// <summary>
         /// Main handler for the get_tests command
         /// </summary>
         /// <param name="params">JSON parameters containing TestMode and Filter</param>
@@ -244,8 +358,143 @@ namespace UMCP.Editor.Tools
                     return Response.Error($"Invalid TestMode: '{parameters.TestMode}'. Valid values are 'EditMode', 'PlayMode', or 'All'.");
                 }
                 
-                // Get tests
-                var tests = GetTestsUtility.GetTestsByParameters(parameters);
+                // Try alternative approach using reflection to access Unity's test database directly
+                var tests = new List<TestInfo>();
+                
+                try
+                {
+                    // Use reflection to access ALL assemblies and look for test methods more comprehensively
+                    var allAssemblies = System.AppDomain.CurrentDomain.GetAssemblies().ToList();
+                    var testAssemblies = new List<System.Reflection.Assembly>();
+                    var assemblyTestCounts = new Dictionary<string, int>();
+                    
+                    foreach (var assembly in allAssemblies)
+                    {
+                        try
+                        {
+                            var assemblyName = assembly.GetName().Name;
+                            
+                            // Check if assembly contains any test methods
+                            bool hasTests = false;
+                            int testMethodCount = 0;
+                            
+                            var types = assembly.GetTypes();
+                            foreach (var type in types)
+                            {
+                                var methods = type.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static)
+                                    .Where(method => method.GetCustomAttributes(false)
+                                        .Any(attr => 
+                                            attr.GetType().Name == "TestAttribute" || 
+                                            attr.GetType().Name == "TestCaseAttribute" ||
+                                            attr.GetType().Name == "UnityTestAttribute" ||
+                                            attr.GetType().Name == "TestCaseSourceAttribute" ||
+                                            attr.GetType().Name == "ParameterizedTestAttribute" ||
+                                            attr.GetType().Name == "TheoryAttribute" ||
+                                            attr.GetType().Name.EndsWith("TestAttribute")))
+                                    .ToList();
+                                    
+                                if (methods.Count > 0)
+                                {
+                                    hasTests = true;
+                                    testMethodCount += methods.Count;
+                                }
+                            }
+                            
+                            if (hasTests)
+                            {
+                                testAssemblies.Add(assembly);
+                                assemblyTestCounts[assemblyName] = testMethodCount;
+                            }
+                        }
+                        catch (System.Exception ex)
+                        {
+                            // Some assemblies might not be accessible, skip them
+                            Debug.LogWarning($"[GetTests] Could not scan assembly {assembly.GetName().Name}: {ex.Message}");
+                        }
+                    }
+                        
+                    Debug.Log($"[GetTests] Found {testAssemblies.Count} assemblies with tests: {string.Join(", ", assemblyTestCounts.Select(kvp => $"{kvp.Key}({kvp.Value})"))}");
+                    
+                    foreach (var assembly in testAssemblies)
+                    {
+                        try
+                        {
+                            var types = assembly.GetTypes();
+                            foreach (var type in types)
+                            {
+                                // Look for ALL possible test method attributes
+                                var methods = type.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static)
+                                    .Where(method => method.GetCustomAttributes(false)
+                                        .Any(attr => 
+                                            attr.GetType().Name == "TestAttribute" || 
+                                            attr.GetType().Name == "TestCaseAttribute" ||
+                                            attr.GetType().Name == "UnityTestAttribute" ||
+                                            attr.GetType().Name == "TestCaseSourceAttribute" ||
+                                            attr.GetType().Name == "ParameterizedTestAttribute" ||
+                                            attr.GetType().Name == "TheoryAttribute" ||
+                                            attr.GetType().Name.EndsWith("TestAttribute")))
+                                    .ToList();
+                                    
+                                foreach (var method in methods)
+                                {
+                                    // Handle parameterized tests - count TestCase attributes separately
+                                    var testCaseAttributes = method.GetCustomAttributes(false)
+                                        .Where(attr => attr.GetType().Name == "TestCaseAttribute")
+                                        .ToList();
+                                        
+                                    if (testCaseAttributes.Count > 0)
+                                    {
+                                        // For parameterized tests, create one entry per TestCase
+                                        for (int i = 0; i < testCaseAttributes.Count; i++)
+                                        {
+                                            var testInfo = new TestInfo
+                                            {
+                                                TestName = $"{type.FullName}.{method.Name}({i})",
+                                                TestAssembly = assembly.GetName().Name,
+                                                TestNamespace = type.Namespace ?? "",
+                                                ContainerScript = type.Name
+                                            };
+                                            
+                                            if (ShouldIncludeTest(testInfo, parameters))
+                                            {
+                                                tests.Add(testInfo);
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // Regular test method
+                                        var testInfo = new TestInfo
+                                        {
+                                            TestName = $"{type.FullName}.{method.Name}",
+                                            TestAssembly = assembly.GetName().Name,
+                                            TestNamespace = type.Namespace ?? "",
+                                            ContainerScript = type.Name
+                                        };
+                                        
+                                        if (ShouldIncludeTest(testInfo, parameters))
+                                        {
+                                            tests.Add(testInfo);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch (System.Exception ex)
+                        {
+                            Debug.LogWarning($"[GetTests] Error processing assembly {assembly.GetName().Name}: {ex.Message}");
+                        }
+                    }
+                    
+                    Debug.Log($"[GetTests] Found {tests.Count} tests using reflection approach");
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogError($"[GetTests] Reflection approach failed: {ex.Message}");
+                    
+                    // Fallback to original approach if reflection fails
+                    return Response.Error($"Failed to retrieve tests using reflection: {ex.Message}");
+                }
                 
                 // Convert to response format
                 var testData = tests.Select(t => new

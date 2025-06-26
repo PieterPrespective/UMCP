@@ -11,7 +11,7 @@ namespace UMCPServer.Services;
 /// <summary>
 /// Service for handling Unity state updates on a separate TCP connection
 /// </summary>
-public class UnityStateConnectionService : IDisposable
+public class UnityStateConnectionService : IUnityStateConnectionService
 {
     private readonly ILogger<UnityStateConnectionService> _logger;
     private readonly ServerConfiguration _config;

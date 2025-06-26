@@ -61,6 +61,14 @@ namespace UMCP.Editor.Tools
         private static bool testRunCompleted = false;
 
         /// <summary>
+        /// Checks if tests are currently running
+        /// </summary>
+        public static bool IsRunning()
+        {
+            return isRunning;
+        }
+
+        /// <summary>
         /// Runs tests based on the provided parameters
         /// </summary>
         public static void RunTestsByParameters(RunTestsParameters parameters, Action<RunTestsResult> callback)
@@ -240,69 +248,63 @@ namespace UMCP.Editor.Tools
                     return Response.Error("Cannot run tests while Unity is compiling or in play mode.");
                 }
 
+                // Check if any scenes are marked dirty (unsaved changes)
+                var dirtyScenes = new List<string>();
+                for (int i = 0; i < UnityEditor.SceneManagement.EditorSceneManager.sceneCount; i++)
+                {
+                    var scene = UnityEditor.SceneManagement.EditorSceneManager.GetSceneAt(i);
+                    if (scene.isDirty)
+                    {
+                        dirtyScenes.Add(scene.name);
+                    }
+                }
+                
+                if (dirtyScenes.Count > 0)
+                {
+                    var sceneList = string.Join(", ", dirtyScenes);
+                    return Response.Error($"Cannot run tests with unsaved scene changes. The following scenes have unsaved changes: {sceneList}. Please save or discard changes before running tests to prevent Unity save dialogs from blocking execution.");
+                }
+
                 isProcessing = true;
                 responseData = null;
 
-                // Run tests asynchronously
+                // Run tests with immediate response approach to avoid main thread blocking
+                // For long-running test operations, we return success immediately and let tests run in background
+                
+                // Check if tests are already running
+                if (RunTestsUtility.IsRunning())
+                {
+                    return Response.Error("Tests are already running. Please wait for current test execution to complete.");
+                }
+                
+                // Start test execution without blocking
                 RunTestsUtility.RunTestsByParameters(parameters, (result) =>
                 {
-                    // Build response
-                    var response = new JObject
+                    // Test results will be logged to Unity console and can be retrieved via RequestStepLogs
+                    Debug.Log($"[RunTests] Test execution completed. AllSuccess: {result.AllSuccess}, Tests: {result.TestResults?.Count ?? 0}");
+                    
+                    if (result.TestResults != null)
                     {
-                        ["AllSuccess"] = result.AllSuccess
-                    };
-
-                    if (parameters.OutputTestResults)
-                    {
-                        var testResults = new JArray();
                         foreach (var test in result.TestResults)
                         {
-                            var testObj = new JObject
+                            if (test.Success)
                             {
-                                ["TestName"] = test.TestName,
-                                ["TestAssembly"] = test.TestAssembly,
-                                ["TestNamespace"] = test.TestNamespace,
-                                ["ContainerScript"] = test.ContainerScript,
-                                ["Success"] = test.Success,
-                                ["Duration"] = test.Duration
-                            };
-                            
-                            // Include failure details if test failed
-                            if (!test.Success)
-                            {
-                                testObj["FailureMessage"] = test.FailureMessage;
-                                testObj["StackTrace"] = test.StackTrace;
+                                Debug.Log($"[RunTests] ✓ PASS: {test.TestName} ({test.Duration:F3}s)");
                             }
-                            
-                            testResults.Add(testObj);
+                            else
+                            {
+                                Debug.LogError($"[RunTests] ✗ FAIL: {test.TestName} ({test.Duration:F3}s)\n{test.FailureMessage}");
+                            }
                         }
-                        response["TestResults"] = testResults;
                     }
-
-                    if (parameters.OutputLogData)
-                    {
-                        response["LogData"] = result.LogData;
-                    }
-
-                    responseData = response;
-                    isProcessing = false;
                 });
 
-                // Wait for completion (synchronous response required by bridge)
-                var startTime = DateTime.Now;
-                var timeout = TimeSpan.FromMinutes(5); // 5 minute timeout for test execution
-
-                while (isProcessing && (DateTime.Now - startTime) < timeout)
+                // Return immediate success response
+                return Response.Success("Test execution started successfully. Check Unity console for results or use RequestStepLogs to retrieve detailed results.", new JObject
                 {
-                    System.Threading.Thread.Sleep(100);
-                }
-
-                if (isProcessing)
-                {
-                    return Response.Error("Test execution timed out after 5 minutes.");
-                }
-
-                return Response.Success("Tests completed.", responseData);
+                    ["message"] = "Tests are running in background. Results will appear in Unity console.",
+                    ["status"] = "running"
+                });
             }
             catch (Exception e)
             {

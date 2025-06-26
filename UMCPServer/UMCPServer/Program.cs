@@ -45,7 +45,9 @@ builder.Services.Configure<ServerConfiguration>(options => BuilderUtility.GetSer
 
 // Register services
 builder.Services.AddSingleton<UnityConnectionService>();
+builder.Services.AddSingleton<IUnityConnectionService>(provider => provider.GetRequiredService<UnityConnectionService>());
 builder.Services.AddSingleton<UnityStateConnectionService>();
+builder.Services.AddSingleton<IUnityStateConnectionService>(provider => provider.GetRequiredService<UnityStateConnectionService>());
 
 // Register MCP server with tools
 builder.Services

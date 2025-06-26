@@ -9,6 +9,13 @@
         "--data-dir",
         "/mnt/c/Prespective/250328_TestMLStuffUnity3d/ChromaDBStores"
       ]
+    },
+	"umcp-docker": {
+      "command": "docker",
+      "args": [
+	  "run", "-i", "umcpserver", 
+	  "--env DOTNET_RUNNING_IN_CONTAINER=true", 
+	  "--env ENABLE_LOGGING=false" ]
     }
   }
 }

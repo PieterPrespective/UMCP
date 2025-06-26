@@ -7,7 +7,17 @@
       "Bash(mkdir:*)",
       "Bash(dotnet build)",
       "Bash(dotnet test:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "mcp__umcp-docker__GetUnityClientState",
+      "mcp__umcp-docker__GetProjectPath",
+      "mcp__umcp-docker__GetServerVersion",
+      "mcp__umcp-docker__RunTests",
+      "mcp__umcp-docker__GetTests",
+      "mcp__umcp-docker__ReadConsole",
+      "Bash(find:*)",
+      "Bash(dotnet build:*)",
+      "mcp__umcp-docker__ForceUpdateEditor",
+      "mcp__umcp-docker__ManageScene"
     ]
   },
   "enableAllProjectMcpServers": true,

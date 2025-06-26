@@ -13,9 +13,9 @@ namespace UMCPServer.Tools;
 public class GetTestsTool
 {
     private readonly ILogger<GetTestsTool> _logger;
-    private readonly UnityConnectionService _unityConnection;
+    private readonly IUnityConnectionService _unityConnection;
     
-    public GetTestsTool(ILogger<GetTestsTool> logger, UnityConnectionService unityConnection)
+    public GetTestsTool(ILogger<GetTestsTool> logger, IUnityConnectionService unityConnection)
     {
         _logger = logger;
         _unityConnection = unityConnection;

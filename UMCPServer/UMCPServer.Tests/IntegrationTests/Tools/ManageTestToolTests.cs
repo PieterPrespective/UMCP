@@ -22,8 +22,8 @@ public class ManageTestToolTests : IntegrationTestBase
     private Mock<ILogger<ForceUpdateEditorTool>> _mockForceUpdateLogger = null!;
     private Mock<ILogger<UnityConnectionService>> _mockUnityConnectionLogger = null!;
     private Mock<ILogger<UnityStateConnectionService>> _mockStateConnectionLogger = null!;
-    private Mock<UnityConnectionService> _mockUnityConnection = null!;
-    private Mock<UnityStateConnectionService> _mockStateConnection = null!;
+    private Mock<IUnityConnectionService> _mockUnityConnection = null!;
+    private Mock<IUnityStateConnectionService> _mockStateConnection = null!;
     private GetTestsTool _getTestsTool = null!;
     private RunTestsTool _runTestsTool = null!;
     private ForceUpdateEditorTool _forceUpdateTool = null!;
@@ -55,20 +55,10 @@ public class ManageTestToolTests : IntegrationTestBase
         mockStateConfig.Setup(x => x.Value).Returns(new ServerConfiguration());
         
         // Setup Unity connection
-        _mockUnityConnection = new Mock<UnityConnectionService>(
-            MockBehavior.Default,
-            _mockUnityConnectionLogger.Object,
-            mockConfig.Object
-        );
-        _mockUnityConnection.CallBase = false;
+        _mockUnityConnection = new Mock<IUnityConnectionService>();
         
         // Setup Unity state connection
-        _mockStateConnection = new Mock<UnityStateConnectionService>(
-            MockBehavior.Default,
-            _mockStateConnectionLogger.Object,
-            mockStateConfig.Object
-        );
-        _mockStateConnection.CallBase = false;
+        _mockStateConnection = new Mock<IUnityStateConnectionService>();
         
         // Create tool instances
         _getTestsTool = new GetTestsTool(_mockGetTestsLogger.Object, _mockUnityConnection.Object);
@@ -92,6 +82,15 @@ public class ManageTestToolTests : IntegrationTestBase
         Console.WriteLine($"Step {CurrentStep + 1}: Setting up Unity connection mocks");
         _mockUnityConnection.Setup(m => m.IsConnected).Returns(true);
         _mockStateConnection.Setup(m => m.IsConnected).Returns(true);
+        
+        // Setup current Unity state for ForceUpdateEditor
+        var currentState = new JObject
+        {
+            ["runmode"] = "EditMode_Scene",
+            ["context"] = "Running",
+            ["timestamp"] = DateTime.UtcNow.ToString("O")
+        };
+        _mockStateConnection.Setup(m => m.CurrentUnityState).Returns(currentState);
         yield return null;
         
         // Step 2: Validate Unity3D project is running with UMCP client active
@@ -129,11 +128,10 @@ public class ManageTestToolTests : IntegrationTestBase
         
         var forceUpdateResponse = new JObject
         {
-            ["status"] = "success",
-            ["result"] = new JObject
+            ["success"] = true,
+            ["data"] = new JObject
             {
-                ["success"] = true,
-                ["message"] = "Editor update forced"
+                ["action"] = "force_update"
             }
         };
         

@@ -10,13 +10,13 @@ namespace UMCPServer.Tools;
 public class ForceUpdateEditorTool
 {
     private readonly ILogger<ForceUpdateEditorTool> _logger;
-    private readonly UnityConnectionService _unityConnection;
-    private readonly UnityStateConnectionService _stateConnection;
+    private readonly IUnityConnectionService _unityConnection;
+    private readonly IUnityStateConnectionService _stateConnection;
     
     public ForceUpdateEditorTool(
         ILogger<ForceUpdateEditorTool> logger, 
-        UnityConnectionService unityConnection,
-        UnityStateConnectionService stateConnection)
+        IUnityConnectionService unityConnection,
+        IUnityStateConnectionService stateConnection)
     {
         _logger = logger;
         _unityConnection = unityConnection;

@@ -10,7 +10,7 @@ using UMCPServer.Models;
 
 namespace UMCPServer.Services;
 
-public class UnityConnectionService : IDisposable
+public class UnityConnectionService : IUnityConnectionService
 {
     private readonly ILogger<UnityConnectionService> _logger;
     private readonly ServerConfiguration _config;
