@@ -274,12 +274,7 @@ public class ManageTestToolTests : IntegrationTestBase
         Console.WriteLine($"Step {CurrentStep + 1}: Running TestAddition");
         
         // Test with OutputTestResults = true, OutputLogData = true
-        var runAdditionResponse = CreateRunTestsResponse(
-            true, // allSuccess
-            new[] { (TestAddition, true) },
-            "Log data for TestAddition"
-        );
-        
+        // Setup initial response
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "run_tests"),
             It.Is<JObject>(j => 
@@ -288,7 +283,20 @@ public class ManageTestToolTests : IntegrationTestBase
                 ((JArray)j["Filter"]).Count == 1 &&
                 j["Filter"][0].ToString() == TestAddition),
             It.IsAny<CancellationToken>()
-        )).ReturnsAsync(runAdditionResponse);
+        )).ReturnsAsync(CreateRunTestsInitialResponse());
+        
+        // Setup console response sequence
+        var sequence = _mockUnityConnection.SetupSequence(m => m.SendCommandAsync(
+            It.Is<string>(s => s == "read_console"),
+            It.IsAny<JObject>(),
+            It.IsAny<CancellationToken>()
+        ));
+        
+        // First poll - test still running
+        sequence.ReturnsAsync(CreateConsoleResponse(false));
+        
+        // Second poll - test completed
+        sequence.ReturnsAsync(CreateConsoleResponse(true, new[] { (TestAddition, true) }, true));
         
         Task<object> runAdditionTask = _runTestsTool.RunTests("EditMode", new[] { TestAddition }, true, true);
         yield return runAdditionTask;
@@ -301,15 +309,20 @@ public class ManageTestToolTests : IntegrationTestBase
         yield return null;
         
         // Test with OutputTestResults = false, OutputLogData = false
-        var runAdditionNoOutputResponse = CreateRunTestsResponse(true, null, null);
-        
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "run_tests"),
             It.Is<JObject>(j => 
                 j["OutputTestResults"].Value<bool>() == false &&
                 j["OutputLogData"].Value<bool>() == false),
             It.IsAny<CancellationToken>()
-        )).ReturnsAsync(runAdditionNoOutputResponse);
+        )).ReturnsAsync(CreateRunTestsInitialResponse());
+        
+        // Setup console response for no output test
+        _mockUnityConnection.Setup(m => m.SendCommandAsync(
+            It.Is<string>(s => s == "read_console"),
+            It.IsAny<JObject>(),
+            It.IsAny<CancellationToken>()
+        )).ReturnsAsync(CreateConsoleResponse(true, new[] { (TestAddition, true) }, true));
         
         Task<object> runAdditionNoOutputTask = _runTestsTool.RunTests("EditMode", new[] { TestAddition }, false, false);
         yield return runAdditionNoOutputTask;
@@ -329,12 +342,7 @@ public class ManageTestToolTests : IntegrationTestBase
     {
         Console.WriteLine($"Step {CurrentStep + 1}: Running TestFaulty (expecting failure)");
         
-        var runFaultyResponse = CreateRunTestsResponse(
-            false, // allSuccess - should be false
-            new[] { (TestFaulty, false) }, // test should fail
-            "Log data showing assertion failure: Expected 7 but was 8"
-        );
-        
+        // Setup initial response
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "run_tests"),
             It.Is<JObject>(j => 
@@ -342,7 +350,14 @@ public class ManageTestToolTests : IntegrationTestBase
                 ((JArray)j["Filter"]).Count == 1 &&
                 j["Filter"][0].ToString() == TestFaulty),
             It.IsAny<CancellationToken>()
-        )).ReturnsAsync(runFaultyResponse);
+        )).ReturnsAsync(CreateRunTestsInitialResponse());
+        
+        // Setup console response for failed test
+        _mockUnityConnection.Setup(m => m.SendCommandAsync(
+            It.Is<string>(s => s == "read_console"),
+            It.IsAny<JObject>(),
+            It.IsAny<CancellationToken>()
+        )).ReturnsAsync(CreateConsoleResponse(true, new[] { (TestFaulty, false) }, false));
         
         Task<object> runFaultyTask = _runTestsTool.RunTests("EditMode", new[] { TestFaulty }, true, true);
         yield return runFaultyTask;
@@ -365,17 +380,7 @@ public class ManageTestToolTests : IntegrationTestBase
     {
         Console.WriteLine($"Step {CurrentStep + 1}: Running all tests with no filter");
         
-        var runAllResponse = CreateRunTestsResponse(
-            false, // allSuccess - should be false because TestFaulty fails
-            new[]
-            {
-                (TestAddition, true),
-                (TestSubtraction, true),
-                (TestFaulty, false)
-            },
-            "Combined log data for all tests"
-        );
-        
+        // Setup initial response
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "run_tests"),
             It.Is<JObject>(j => 
@@ -383,7 +388,19 @@ public class ManageTestToolTests : IntegrationTestBase
                 j["Filter"] is JArray && 
                 ((JArray)j["Filter"]).Count == 0),
             It.IsAny<CancellationToken>()
-        )).ReturnsAsync(runAllResponse);
+        )).ReturnsAsync(CreateRunTestsInitialResponse());
+        
+        // Setup console response for all tests
+        _mockUnityConnection.Setup(m => m.SendCommandAsync(
+            It.Is<string>(s => s == "read_console"),
+            It.IsAny<JObject>(),
+            It.IsAny<CancellationToken>()
+        )).ReturnsAsync(CreateConsoleResponse(true, new[]
+        {
+            (TestAddition, true),
+            (TestSubtraction, true),
+            (TestFaulty, false)
+        }, false)); // allSuccess is false due to TestFaulty
         
         Task<object> runAllTask = _runTestsTool.RunTests("EditMode", null, true, true);
         yield return runAllTask;
@@ -439,42 +456,61 @@ public class ManageTestToolTests : IntegrationTestBase
     }
     
     /// <summary>
-    /// Helper method to create RunTests response
+    /// Helper method to create initial RunTests response (Unity returns immediately)
     /// </summary>
-    private JObject CreateRunTestsResponse(bool allSuccess, (string name, bool success)[]? testResults, string? logData)
+    private JObject CreateRunTestsInitialResponse()
     {
-        var response = new JObject
+        return new JObject
         {
-            ["status"] = "success",
-            ["result"] = new JObject(),
+            ["success"] = true,
+            ["message"] = "Test execution started successfully. Check Unity console for results or use RequestStepLogs to retrieve detailed results.",
             ["data"] = new JObject
             {
-                ["AllSuccess"] = allSuccess
+                ["message"] = "Tests are running in background. Results will appear in Unity console.",
+                ["status"] = "running"
             }
         };
+    }
+    
+    /// <summary>
+    /// Helper method to create console log entries for test results
+    /// </summary>
+    private JObject CreateConsoleResponse(bool completed, (string name, bool success)[]? testResults = null, bool allSuccess = true)
+    {
+        var entries = new JArray();
         
         if (testResults != null)
         {
-            var resultsArray = new JArray();
             foreach (var test in testResults)
             {
-                resultsArray.Add(new JObject
+                var message = test.success 
+                    ? $"[RunTests] ✓ PASS: {test.name} (0.123s)"
+                    : $"[RunTests] ✗ FAIL: {test.name} (0.456s)";
+                    
+                entries.Add(new JObject
                 {
-                    ["TestName"] = test.name,
-                    ["TestAssembly"] = "Assembly-CSharp-Editor",
-                    ["TestNamespace"] = TestNamespace,
-                    ["ContainerScript"] = TestScriptName,
-                    ["Success"] = test.success
+                    ["type"] = test.success ? "Log" : "Error",
+                    ["message"] = message
                 });
             }
-            response["data"]["TestResults"] = resultsArray;
         }
         
-        if (logData != null)
+        if (completed)
         {
-            response["data"]["LogData"] = logData;
+            entries.Add(new JObject
+            {
+                ["type"] = "Log",
+                ["message"] = $"[RunTests] Test execution completed. AllSuccess: {allSuccess}, Tests: {testResults?.Length ?? 0}"
+            });
         }
         
-        return response;
+        return new JObject
+        {
+            ["success"] = true,
+            ["data"] = new JObject
+            {
+                ["entries"] = entries
+            }
+        };
     }
 }

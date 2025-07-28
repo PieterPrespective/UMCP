@@ -1,6 +1,7 @@
 using UnityEngine;
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace UnityEditor.TestTools.TestRunner.Api
 {
@@ -37,6 +38,7 @@ namespace UnityEditor.TestTools.TestRunner.Api
 
         private static TestRunnerApi testApi;
         private static TestCallbackForwarder currentCallbacks;
+        private static bool isTestRunning = false;
 
         /// <summary>
         /// Creates and returns a TestRunnerApi instance
@@ -76,6 +78,27 @@ namespace UnityEditor.TestTools.TestRunner.Api
         }
 
         /// <summary>
+        /// Resets the TestRunnerApi instance completely
+        /// </summary>
+        public static void ResetTestRunnerApi()
+        {
+            // Unregister callbacks first
+            UnregisterCallbacks();
+            
+            // Destroy the old instance
+            if (testApi != null)
+            {
+                UnityEngine.Object.DestroyImmediate(testApi);
+                testApi = null;
+            }
+            
+            // Clear callback reference
+            currentCallbacks = null;
+            
+            Debug.Log("[TestRunnerAPIForwarder] TestRunnerApi instance has been reset.");
+        }
+
+        /// <summary>
         /// Retrieves the test list for a specific test mode asynchronously
         /// </summary>
         public static void RetrieveTestList(TestMode mode, Action<ITestAdaptor> callback)
@@ -86,6 +109,48 @@ namespace UnityEditor.TestTools.TestRunner.Api
             }
 
             testApi.RetrieveTestList(mode, callback);
+        }
+
+        /// <summary>
+        /// Stores the last test run result for saving to file
+        /// </summary>
+        private static ITestResultAdaptor lastTestRunResult;
+
+        /// <summary>
+        /// Gets the last test run result
+        /// </summary>
+        public static ITestResultAdaptor GetLastRunResult()
+        {
+            return lastTestRunResult;
+        }
+
+        /// <summary>
+        /// Saves test results to a specific XML file path
+        /// </summary>
+        public static void SaveResultToFile(ITestResultAdaptor results, string xmlFilePath)
+        {
+            if (testApi == null)
+            {
+                CreateTestRunnerApi();
+            }
+
+            try
+            {
+                // Ensure directory exists
+                var directory = System.IO.Path.GetDirectoryName(xmlFilePath);
+                if (!string.IsNullOrEmpty(directory) && !System.IO.Directory.Exists(directory))
+                {
+                    System.IO.Directory.CreateDirectory(directory);
+                }
+
+                // Save results to file
+                TestRunnerApi.SaveResultToFile(results, xmlFilePath);
+                Debug.Log($"[TestRunnerAPIForwarder] Test results saved to: {xmlFilePath}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[TestRunnerAPIForwarder] Failed to save test results to {xmlFilePath}: {ex}");
+            }
         }
 
         /// <summary>
@@ -126,6 +191,19 @@ namespace UnityEditor.TestTools.TestRunner.Api
         }
 
         /// <summary>
+        /// Returns true if tests are currently running
+        /// </summary>
+        public static bool IsTestRunning()
+        {
+            return isTestRunning;
+        }
+
+        /// <summary>
+        /// Event fired when test run state changes
+        /// </summary>
+        public static event Action<bool> OnTestRunStateChanged;
+
+        /// <summary>
         /// Internal callback forwarder that converts internal types to public ones
         /// </summary>
         private class TestCallbackForwarder : ICallbacks
@@ -141,11 +219,15 @@ namespace UnityEditor.TestTools.TestRunner.Api
 
             public void RunStarted(ITestAdaptor testsToRun)
             {
-                // Not used in current implementation
+                isTestRunning = true;
+                OnTestRunStateChanged?.Invoke(true);
             }
 
             public void RunFinished(ITestResultAdaptor result)
             {
+                isTestRunning = false;
+                OnTestRunStateChanged?.Invoke(false);
+                lastTestRunResult = result;
                 onRunFinished?.Invoke();
             }
 

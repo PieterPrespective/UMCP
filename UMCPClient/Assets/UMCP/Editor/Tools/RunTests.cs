@@ -59,6 +59,7 @@ namespace UMCP.Editor.Tools
         private static Action<RunTestsResult> currentCallback;
         private static string stepGuid;
         private static bool testRunCompleted = false;
+        private static List<string> testResultFilePaths;
 
         /// <summary>
         /// Checks if tests are currently running
@@ -66,6 +67,45 @@ namespace UMCP.Editor.Tools
         public static bool IsRunning()
         {
             return isRunning;
+        }
+
+        /// <summary>
+        /// Resets the test runner state to allow new test runs
+        /// Use this method if the test runner gets stuck in a running state
+        /// </summary>
+        public static void ResetState()
+        {
+            var wasRunning = isRunning;
+            var wasCompleted = testRunCompleted;
+            var previousStep = stepGuid;
+            
+            isRunning = false;
+            testRunCompleted = false;
+            currentResults = null;
+            currentCallback = null;
+            stepGuid = null;
+            testResultFilePaths = null;
+            
+            // Stop any running coroutine
+            if (currentCoroutine != null)
+            {
+                EditorCoroutineUtility.StopCoroutine(currentCoroutine);
+                currentCoroutine = null;
+            }
+            
+            // Unregister any lingering callbacks
+            TestRunnerAPIForwarderUtility.UnregisterCallbacks();
+            
+            // Force reset the TestRunnerApi instance
+            TestRunnerAPIForwarderUtility.ResetTestRunnerApi();
+            
+            // Log the reset with detailed state information
+            Debug.Log($"[RunTests] Test runner state has been reset. Previous state - Running: {wasRunning}, Completed: {wasCompleted}, Step: {previousStep ?? "null"}");
+            
+            if (wasRunning)
+            {
+                Debug.Log($"[RunTests] FORCED_RESET - Previous step: {previousStep}");
+            }
         }
 
         /// <summary>
@@ -88,6 +128,7 @@ namespace UMCP.Editor.Tools
             testRunCompleted = false;
             currentResults = new List<TestResultData>();
             currentCallback = callback;
+            testResultFilePaths = new List<string>();
             
             // Generate unique step GUID for logging
             stepGuid = $"RunTests_{Guid.NewGuid():N}";
@@ -139,21 +180,40 @@ namespace UMCP.Editor.Tools
             // Reset completion flag for this run
             testRunCompleted = false;
             
+            Debug.Log($"[RunTests] Starting test execution for mode: {mode}, Filter: {string.Join(", ", filter ?? new string[0])}, Step: {stepGuid}");
+            
             // Execute tests through forwarder
             TestRunnerAPIForwarderUtility.ExecuteTests(mode, filter);
 
             // Wait for tests to complete by checking the completion flag
             var startTime = DateTime.Now;
             var timeout = TimeSpan.FromMinutes(10); // 10 minute timeout for test execution
+            var lastLogTime = DateTime.Now;
             
             while (!testRunCompleted && (DateTime.Now - startTime) < timeout)
             {
                 yield return new EditorWaitForSeconds(0.1f);
+                
+                // Log status every 10 seconds for debugging
+                if ((DateTime.Now - lastLogTime).TotalSeconds > 10)
+                {
+                    var elapsed = (DateTime.Now - startTime).TotalSeconds;
+                    Debug.Log($"[RunTests] Still waiting for test completion. Elapsed: {elapsed:F1}s, Mode: {mode}, Step: {stepGuid}");
+                    lastLogTime = DateTime.Now;
+                }
             }
             
             if (!testRunCompleted)
             {
                 Debug.LogWarning($"[RunTests] Test execution for mode {mode} timed out after {timeout.TotalMinutes} minutes");
+                Debug.LogWarning($"[RunTests] TEST_EXECUTION_TIMEOUT - Step: {stepGuid}");
+            }
+            else
+            {
+                Debug.Log($"[RunTests] Test execution completed successfully for mode: {mode}, Step: {stepGuid}");
+                
+                // Save test results to XML file
+                SaveTestResultsToFile(mode);
             }
         }
 
@@ -174,10 +234,65 @@ namespace UMCP.Editor.Tools
             currentResults.Add(testResult);
         }
 
+        private static void SaveTestResultsToFile(TestMode mode)
+        {
+            try
+            {
+                // Get test results from the forwarder
+                var testResult = TestRunnerAPIForwarderUtility.GetLastRunResult();
+                if (testResult != null)
+                {
+                    // Create TestResults directory in project root (one folder up from Assets)
+                    var projectRoot = System.IO.Path.GetDirectoryName(Application.dataPath);
+                    var resultsDirectory = System.IO.Path.Combine(projectRoot, "TestResults");
+                    if (!System.IO.Directory.Exists(resultsDirectory))
+                    {
+                        System.IO.Directory.CreateDirectory(resultsDirectory);
+                    }
+                    
+                    // Generate filename with timestamp and mode
+                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    var filename = $"TestResults_{mode}_{stepGuid}_{timestamp}.xml";
+                    var filePath = System.IO.Path.Combine(resultsDirectory, filename);
+                    
+                    // Save results to file
+                    TestRunnerAPIForwarderUtility.SaveResultToFile(testResult, filePath);
+                    
+                    // Log the file path for the server to pick up
+                    Debug.Log($"[RunTests] TEST_RESULTS_FILE_PATH: {filePath}");
+                    
+                    // Store the path for later reference
+                    testResultFilePaths.Add(filePath);
+                }
+                else
+                {
+                    Debug.LogWarning($"[RunTests] No test results available to save for mode: {mode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[RunTests] Failed to save test results to file: {ex}");
+            }
+        }
+
         private static void OnRunFinished()
         {
+            Debug.Log($"[RunTests] OnRunFinished callback triggered for step: {stepGuid}");
+            
+            // Signal completion FIRST to stop any polling loops
+            testRunCompleted = true;
+            
             // Unregister callbacks through forwarder
             TestRunnerAPIForwarderUtility.UnregisterCallbacks();
+            
+            // Log completion marker for server-side polling detection
+            Debug.Log($"[RunTests] TEST_EXECUTION_COMPLETED - Step: {stepGuid}");
+            
+            // Log all test result file paths if any were saved
+            if (testResultFilePaths != null && testResultFilePaths.Count > 0)
+            {
+                Debug.Log($"[RunTests] TEST_RESULTS_FILE_PATHS_ALL: {string.Join(";", testResultFilePaths)}");
+            }
             
             // Get log data if requested
             string logData = "";
@@ -204,8 +319,9 @@ namespace UMCP.Editor.Tools
             };
             
             currentCallback?.Invoke(finalResult);
-            testRunCompleted = true; // Signal completion
             isRunning = false;
+            
+            Debug.Log($"[RunTests] OnRunFinished callback completed for step: {stepGuid}");
         }
 
     }
@@ -280,31 +396,21 @@ namespace UMCP.Editor.Tools
                 // Start test execution without blocking
                 RunTestsUtility.RunTestsByParameters(parameters, (result) =>
                 {
-                    // Test results will be logged to Unity console and can be retrieved via RequestStepLogs
+                    // Only log completion status - detailed results are in the XML file
                     Debug.Log($"[RunTests] Test execution completed. AllSuccess: {result.AllSuccess}, Tests: {result.TestResults?.Count ?? 0}");
-                    
-                    if (result.TestResults != null)
-                    {
-                        foreach (var test in result.TestResults)
-                        {
-                            if (test.Success)
-                            {
-                                Debug.Log($"[RunTests] ✓ PASS: {test.TestName} ({test.Duration:F3}s)");
-                            }
-                            else
-                            {
-                                Debug.LogError($"[RunTests] ✗ FAIL: {test.TestName} ({test.Duration:F3}s)\n{test.FailureMessage}");
-                            }
-                        }
-                    }
                 });
 
-                // Return immediate success response
-                return Response.Success("Test execution started successfully. Check Unity console for results or use RequestStepLogs to retrieve detailed results.", new JObject
-                {
-                    ["message"] = "Tests are running in background. Results will appear in Unity console.",
-                    ["status"] = "running"
-                });
+                // Return immediate success response in format expected by current MCP server
+                return new { 
+                    success = true, 
+                    message = "Test execution started successfully. Check Unity console for results or use RequestStepLogs to retrieve detailed results.", 
+                    status = "running",
+                    data = new JObject
+                    {
+                        ["message"] = "Tests are running in background. Results will appear in Unity console.",
+                        ["status"] = "running"
+                    }
+                };
             }
             catch (Exception e)
             {

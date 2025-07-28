@@ -64,7 +64,9 @@ builder.Services
     .WithTools<RequestStepLogsTool>()
     .WithTools<ForceUpdateEditorTool>()
     .WithTools<GetTestsTool>()
-    .WithTools<RunTestsTool>();
+    .WithTools<RunTestsTool>()
+    .WithTools<InterpretTestResultsTool>()
+    .WithTools<CleanupTestResultsTool>();
 
 
 // Add hosted service for Unity connection lifecycle

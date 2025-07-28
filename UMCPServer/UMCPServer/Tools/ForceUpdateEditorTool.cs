@@ -120,33 +120,58 @@ public class ForceUpdateEditorTool
             
             try
             {
-                // Check if we're already in the desired state
-                var currentState = _stateConnection.CurrentUnityState;
-                if (currentState != null && IsEditModeRunning(
-                    currentState.Value<string>("runmode"), 
-                    currentState.Value<string>("context")))
+                // Add 1 second wait to allow asset database updates to start
+                _logger.LogInformation("Waiting 1 second for asset database updates to start...");
+                await Task.Delay(1000, linkedCts.Token);
+                
+                // Implement retry loop for checking EditMode_Running state
+                const int maxRetries = 5;
+                int retryCount = 0;
+                
+                while (retryCount < maxRetries)
                 {
-                    var waitTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
-                    _logger.LogInformation("Unity is already in EditMode_Running state");
-                    
-                    return new
+                    var currentState = _stateConnection.CurrentUnityState;
+                    if (currentState != null && IsEditModeRunning(
+                        currentState.Value<string>("runmode"), 
+                        currentState.Value<string>("context")))
                     {
-                        success = true,
-                        message = "Unity Editor force update completed successfully",
-                        initialState = new
+                        var waitTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
+                        _logger.LogInformation("Unity reached EditMode_Running state after {RetryCount} retries", retryCount);
+                        
+                        return new
                         {
-                            runmode = initialRunmode,
-                            context = initialContext
-                        },
-                        finalState = new
-                        {
-                            runmode = currentState.Value<string>("runmode"),
-                            context = currentState.Value<string>("context"),
-                            timestamp = currentState.Value<string>("timestamp")
-                        },
-                        action = action,
-                        waitTimeMs = (int)waitTime
-                    };
+                            success = true,
+                            message = $"Unity Editor force update completed successfully after {retryCount} retries",
+                            initialState = new
+                            {
+                                runmode = initialRunmode,
+                                context = initialContext
+                            },
+                            finalState = new
+                            {
+                                runmode = currentState.Value<string>("runmode"),
+                                context = currentState.Value<string>("context"),
+                                timestamp = currentState.Value<string>("timestamp")
+                            },
+                            action = action,
+                            waitTimeMs = (int)waitTime,
+                            retries = retryCount
+                        };
+                    }
+                    
+                    if (retryCount < maxRetries - 1)
+                    {
+                        _logger.LogDebug("Unity not in EditMode_Running state yet (retry {RetryCount}/{MaxRetries}). Current state: runmode={Runmode}, context={Context}", 
+                            retryCount + 1, maxRetries, 
+                            currentState?.Value<string>("runmode") ?? "unknown", 
+                            currentState?.Value<string>("context") ?? "unknown");
+                        
+                        // Wait before next retry (exponential backoff with max 2 seconds)
+                        var retryDelay = Math.Min(500 * Math.Pow(2, retryCount), 2000);
+                        await Task.Delay((int)retryDelay, linkedCts.Token);
+                    }
+                    
+                    retryCount++;
                 }
                 
                 // Wait for the desired state or timeout

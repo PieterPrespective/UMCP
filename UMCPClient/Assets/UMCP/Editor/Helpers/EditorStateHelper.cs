@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditor.Compilation;
+using UnityEditor.TestTools.TestRunner.Api;
 
 namespace UMCP.Editor.Helpers
 {
@@ -27,7 +28,8 @@ namespace UMCP.Editor.Helpers
             Running,
             Switching,
             Compiling,
-            UpdatingAssets
+            UpdatingAssets,
+            Testing
         }
         #endregion
 
@@ -99,7 +101,7 @@ namespace UMCP.Editor.Helpers
         /// </summary>
         public static bool CanModifyProjectFiles => 
             CurrentRunmode != Runmode.PlayMode && 
-            CurrentContext == Context.Running;
+            (CurrentContext == Context.Running || CurrentContext == Context.Testing);
 
         /// <summary>
         /// Returns true if the editor is currently responsive
@@ -148,6 +150,9 @@ namespace UMCP.Editor.Helpers
             PrefabStage.prefabStageOpened += OnPrefabStageOpened;
             PrefabStage.prefabStageClosing += OnPrefabStageClosing;
 
+            // Test runner events
+            TestRunnerAPIForwarderUtility.OnTestRunStateChanged += OnTestRunStateChanged;
+
             // Initial state detection
             DetectCurrentState();
         }
@@ -177,7 +182,11 @@ namespace UMCP.Editor.Helpers
             }
 
             // Detect Context
-            if (EditorApplication.isCompiling)
+            if (TestRunnerAPIForwarderUtility.IsTestRunning() || StateStorage.isTestRunning)
+            {
+                CurrentContext = Context.Testing;
+            }
+            else if (EditorApplication.isCompiling)
             {
                 CurrentContext = Context.Compiling;
             }
@@ -371,6 +380,21 @@ namespace UMCP.Editor.Helpers
             if (CurrentContext == Context.UpdatingAssets)
             {
                 CurrentContext = StateStorage.isTransitioning ? Context.Switching : Context.Running;
+            }
+            OnStateChanged?.Invoke();
+        }
+
+        private static void OnTestRunStateChanged(bool isRunning)
+        {
+            StateStorage.isTestRunning = isRunning;
+            if (isRunning)
+            {
+                CurrentContext = Context.Testing;
+            }
+            else
+            {
+                // Re-detect the correct context after tests finish
+                DetectCurrentState();
             }
             OnStateChanged?.Invoke();
         }

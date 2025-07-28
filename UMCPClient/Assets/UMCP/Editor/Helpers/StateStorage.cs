@@ -16,6 +16,7 @@ namespace UMCP.Editor.Helpers
         public bool wasInPrefabMode = false;
         public bool isImportingAssets = false;
         public float lastImportTime = 0f;
+        public bool isTestRunning = false;
         
         /// <summary>
         /// Mark that asset importing has started

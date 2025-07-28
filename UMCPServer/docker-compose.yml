@@ -24,6 +24,19 @@ services:
     stdin_open: true   # Required for interactive mode
     tty: true          # Required for interactive mode
     
+    # Volume mounts for file access
+    volumes:
+      # Windows: Mount Unity project TestResults directory
+      - type: bind
+        source: ../TestResults
+        target: /app/TestResults
+        read_only: true
+      # Windows: Mount entire Unity project for broader access
+      - type: bind
+        source: ../
+        target: /app/UnityProject
+        read_only: true
+    
     # Maps host.docker.internal to the host IP for all platforms
     # This works on Linux, macOS and Windows
     extra_hosts:
