@@ -106,6 +106,18 @@ namespace UMCP.Editor.Tools
             {
                 Debug.Log($"[RunTests] FORCED_RESET - Previous step: {previousStep}");
             }
+
+            EditorApplication.delayCall += () => 
+            {
+                // Ensure the editor is responsive after reset
+                if (!EditorStateHelper.IsEditorResponsive)
+                {
+                    Debug.LogWarning("[RunTests] Editor was not responsive after reset, forcing update to ensure state is clean.");
+                    EditorApplication.update();
+                }
+            };
+
+            
         }
 
         /// <summary>
@@ -162,6 +174,9 @@ namespace UMCP.Editor.Tools
                 {
                     // For "All", we'll need to run both modes separately
                     yield return RunTestsForMode(TestMode.EditMode, parameters.Filter);
+
+                    yield return new EditorWaitForSeconds(5f); // Small delay between runs
+
                     yield return RunTestsForMode(TestMode.PlayMode, parameters.Filter);
                 }
                 else
@@ -210,6 +225,7 @@ namespace UMCP.Editor.Tools
             }
             else
             {
+                yield return new EditorWaitForSeconds(1f);
                 Debug.Log($"[RunTests] Test execution completed successfully for mode: {mode}, Step: {stepGuid}");
                 
                 // Save test results to XML file
@@ -285,14 +301,14 @@ namespace UMCP.Editor.Tools
             // Unregister callbacks through forwarder
             TestRunnerAPIForwarderUtility.UnregisterCallbacks();
             
-            // Log completion marker for server-side polling detection
-            Debug.Log($"[RunTests] TEST_EXECUTION_COMPLETED - Step: {stepGuid}");
-            
-            // Log all test result file paths if any were saved
+            // Log all test result file paths BEFORE completion marker for better server-side detection
             if (testResultFilePaths != null && testResultFilePaths.Count > 0)
             {
                 Debug.Log($"[RunTests] TEST_RESULTS_FILE_PATHS_ALL: {string.Join(";", testResultFilePaths)}");
             }
+            
+            // Log completion marker for server-side polling detection (after file paths)
+            Debug.Log($"[RunTests] TEST_EXECUTION_COMPLETED - Step: {stepGuid}");
             
             // Get log data if requested
             string logData = "";

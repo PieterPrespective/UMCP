@@ -112,7 +112,8 @@ namespace UMCP.Editor.Examples
             {
                 EditorUtility.DisplayProgressBar("Compiling", "Please wait...", 0.5f);
             }
-            else if (previous == EditorStateHelper.Context.Compiling)
+            //Don't just hide the progress bar when switching away from compilation (Basically do it always when switching)
+            else
             {
                 EditorUtility.ClearProgressBar();
             }

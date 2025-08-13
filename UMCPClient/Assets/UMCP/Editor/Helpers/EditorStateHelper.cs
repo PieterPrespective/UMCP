@@ -106,9 +106,11 @@ namespace UMCP.Editor.Helpers
         /// <summary>
         /// Returns true if the editor is currently responsive
         /// </summary>
-        public static bool IsEditorResponsive => 
-            CurrentContext != Context.Compiling && 
-            CurrentContext != Context.UpdatingAssets;
+        public static bool IsEditorResponsive =>
+            CurrentContext != Context.Compiling &&
+            CurrentContext != Context.UpdatingAssets &&
+            CurrentContext != Context.Switching &&
+            CurrentContext != Context.Testing;
         #endregion
 
         #region Events
@@ -254,6 +256,9 @@ namespace UMCP.Editor.Helpers
                     break;
             }
             OnStateChanged?.Invoke();
+
+            SceneView.RepaintAll();
+
         }
 
         private static void OnSceneOpened(UnityEngine.SceneManagement.Scene scene, OpenSceneMode mode)
@@ -333,6 +338,7 @@ namespace UMCP.Editor.Helpers
         {
             // State is automatically restored from StateStorage
             DetectCurrentState();
+            Debug.Log("[OnAfterAssemblyReload]");
             OnStateChanged?.Invoke();
         }
 
@@ -344,12 +350,25 @@ namespace UMCP.Editor.Helpers
 
         private static void OnCompilationFinished(object obj)
         {
+            
+
+            EditorApplication.delayCall += () =>
+            {
+                if (CurrentContext == Context.Compiling)
+                {
+                    CurrentContext = StateStorage.isTransitioning ? Context.Switching : Context.Running;
+                }
+                Debug.Log("[OnCompilationFinished]" + CurrentContext);
+                OnStateChanged?.Invoke();
+            };
+
+            //Compilation completion always seems to switch to asset import (but a short delay happens before it)
             if (CurrentContext == Context.Compiling)
             {
-                CurrentContext = StateStorage.isTransitioning ? Context.Switching : Context.Running;
+                CurrentContext = Context.Switching;
             }
-            OnStateChanged?.Invoke();
-        }
+
+            }
 
         private static void OnImportPackageStarted(string packageName)
         {
@@ -363,6 +382,7 @@ namespace UMCP.Editor.Helpers
             {
                 CurrentContext = StateStorage.isTransitioning ? Context.Switching : Context.Running;
             }
+            Debug.Log("[OnImportPackageCompleted]" + CurrentContext);
             OnStateChanged?.Invoke();
         }
 
@@ -425,12 +445,14 @@ namespace UMCP.Editor.Helpers
         /// </summary>
         internal static void NotifyAssetImportStarted()
         {
+            
             StateStorage.StartAssetImport();
             if (CurrentContext != Context.Compiling)
             {
                 CurrentContext = Context.UpdatingAssets;
                 OnStateChanged?.Invoke();
             }
+            Debug.Log("[NotifyAssetImportStarted]" + CurrentContext);
         }
         
         /// <summary>
@@ -443,6 +465,7 @@ namespace UMCP.Editor.Helpers
             {
                 RefreshState();
             };
+            Debug.Log("[NotifyAssetImportCompleted]" + CurrentContext);
         }
         #endregion
     }

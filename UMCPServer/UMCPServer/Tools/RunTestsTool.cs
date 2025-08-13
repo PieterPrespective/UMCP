@@ -123,6 +123,9 @@ public class RunTestsTool
                 var delayMs = 1000; // Start with 1 second
                 var maxDelayMs = 5000; // Max 5 seconds between attempts
                 var completed = false;
+                var completionDetected = false;
+                var completionDetectedAttempt = 0;
+                var maxPostCompletionAttempts = 5; // Continue polling for 5 more attempts after completion
                 JObject completionData = null;
 
                 for (int attempt = 0; attempt < maxAttempts && !completed; attempt++)
@@ -133,7 +136,7 @@ public class RunTestsTool
                         ["action"] = "get",
                         ["types"] = new JArray("log"),
                         ["filterText"] = "[RunTests]",
-                        ["count"] = 20,
+                        ["count"] = 50,
                         ["format"] = "detailed"
                     };
 
@@ -165,7 +168,15 @@ public class RunTestsTool
                                 {
                                     _logger.LogInformation("Test execution completed, parsing results...");
 
-                                    // Parse the results from the console logs
+                                    // Mark completion detected but continue polling to capture file paths
+                                    if (!completionDetected)
+                                    {
+                                        completionDetected = true;
+                                        completionDetectedAttempt = attempt;
+                                        _logger.LogInformation("Completion detected at attempt {Attempt}, continuing to poll for file paths...", attempt);
+                                    }
+
+                                    // Parse the results from the console logs (including from all previous attempts)
                                     var testResultFilePaths = new List<string>();
                                     var allSuccess = true;
                                     var testCount = 0;
@@ -238,17 +249,34 @@ public class RunTestsTool
                                         completionData = new JObject
                                         {
                                             ["success"] = true,
-                                            ["testResultFiles"] = JArray.FromObject(testResultFilePaths),
+                                            ["testResultFiles"] = JArray.FromObject(new List<string>() { testResultFilePaths[testResultFilePaths.Count - 1] }),
                                             ["message"] = testResultFilePaths.Count == 1 
                                                 ? $"Tests completed. Results saved to: {testResultFilePaths[0]}. Use InterpretTestResults tool to analyze the results."
-                                                : $"Tests completed. Results saved to {testResultFilePaths.Count} files. Use InterpretTestResults tool to analyze the results.",
+                                                : $"Tests completed. Results saved to: {testResultFilePaths[testResultFilePaths.Count - 1]}. Use InterpretTestResults tool to analyze the results.",
                                             ["testCount"] = testCount,
                                             ["allTestsPassed"] = allSuccess
                                         };
+                                        _logger.LogInformation("File paths found, marking as completed");
+                                        completed = true;
+                                    }
+                                    else if (attempt - completionDetectedAttempt >= maxPostCompletionAttempts)
+                                    {
+                                        // We've polled long enough after completion detection without finding file paths
+                                        completionData = new JObject
+                                        {
+                                            ["success"] = true,
+                                            ["message"] = "Test execution completed but no test result files were found after extended polling.",
+                                            ["testCount"] = testCount,
+                                            ["allTestsPassed"] = allSuccess
+                                        };
+                                        _logger.LogWarning("No file paths found after {PostCompletionAttempts} additional polling attempts", maxPostCompletionAttempts);
+                                        completed = true;
                                     }
                                     else
                                     {
-                                        // No test result files were generated, but tool execution succeeded
+                                        // Continue polling for file paths
+                                        _logger.LogInformation("No file paths found yet, continuing to poll... (attempt {CurrentAttempt} of {MaxPostCompletion} post-completion attempts)", 
+                                            attempt - completionDetectedAttempt, maxPostCompletionAttempts);
                                         completionData = new JObject
                                         {
                                             ["success"] = true,
@@ -258,7 +286,6 @@ public class RunTestsTool
                                         };
                                     }
 
-                                    completed = true;
                                     break; // Exit the foreach loop
                                 }
                             }

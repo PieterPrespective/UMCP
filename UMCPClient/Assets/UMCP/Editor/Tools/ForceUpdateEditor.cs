@@ -105,11 +105,11 @@ namespace UMCP.Editor.Tools
                     AssetDatabase.Refresh();
 
                     // Mark scene as dirty to trigger any necessary updates
-                    var activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-                    if (activeScene.IsValid())
-                    {
-                        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(activeScene);
-                    }
+                    //var activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+                    //if (activeScene.IsValid())
+                    //{
+                    //    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(activeScene);
+                    //}
 
                     // Force a repaint of all editor windows using delayCall to avoid recursion
                     EditorApplication.delayCall += () =>
