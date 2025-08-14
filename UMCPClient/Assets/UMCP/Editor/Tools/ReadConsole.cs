@@ -375,15 +375,8 @@ namespace UMCP.Editor.Tools
                  initialType = LogType.Log; 
              }
 
-             // Apply the observed "one level lower" correction
-             switch (initialType)
-             {
-                 case LogType.Error:   return LogType.Warning; // Error becomes Warning
-                 case LogType.Warning: return LogType.Log;     // Warning becomes Log
-                 case LogType.Assert:  return LogType.Assert;  // Assert remains Assert (no lower level defined)
-                 case LogType.Log:     return LogType.Log;     // Log remains Log
-                 default:              return LogType.Log;     // Default fallback
-             }
+             // Return the correct log type without any remapping
+             return initialType;
          }
 
         /// <summary>
