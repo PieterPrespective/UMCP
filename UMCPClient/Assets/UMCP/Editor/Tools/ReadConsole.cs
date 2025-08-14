@@ -360,29 +360,19 @@ namespace UMCP.Editor.Tools
 
          private static LogType GetLogTypeFromMode(int mode)
          {
-             // First, determine the type based on the original logic (most severe first)
-             LogType initialType;
+             // Determine the log type based on mode bits
+             // Check for most severe types first
              if ((mode & (ModeBitError | ModeBitScriptingError | ModeBitException | ModeBitScriptingException)) != 0) { 
-                 initialType = LogType.Error;
+                 return LogType.Error;
              }
              else if ((mode & (ModeBitAssert | ModeBitScriptingAssertion)) != 0) { 
-                 initialType = LogType.Assert;
+                 return LogType.Assert;
              }
              else if ((mode & (ModeBitWarning | ModeBitScriptingWarning)) != 0) { 
-                 initialType = LogType.Warning;
+                 return LogType.Warning;
              }
              else { 
-                 initialType = LogType.Log; 
-             }
-
-             // Apply the observed "one level lower" correction
-             switch (initialType)
-             {
-                 case LogType.Error:   return LogType.Warning; // Error becomes Warning
-                 case LogType.Warning: return LogType.Log;     // Warning becomes Log
-                 case LogType.Assert:  return LogType.Assert;  // Assert remains Assert (no lower level defined)
-                 case LogType.Log:     return LogType.Log;     // Log remains Log
-                 default:              return LogType.Log;     // Default fallback
+                 return LogType.Log; 
              }
          }
 
