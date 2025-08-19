@@ -8,6 +8,7 @@ using System.Linq;
 using System.Collections;
 using Unity.EditorCoroutines.Editor;
 using UMCP.Editor.Helpers;
+using UMCP.Editor.Settings;
 
 namespace UMCP.Editor.Tools
 {
@@ -187,6 +188,22 @@ namespace UMCP.Editor.Tools
                     ContainerScript = ExtractContainerScript(testNode.FullName)
                 };
                 
+                // Check if test is in an excluded namespace
+                var excludedNamespaces = UMCPSettings.Instance.ExcludedTestNamespaces;
+                if (excludedNamespaces != null && excludedNamespaces.Length > 0)
+                {
+                    foreach (var excludedNamespace in excludedNamespaces)
+                    {
+                        if (!string.IsNullOrEmpty(excludedNamespace) && 
+                            !string.IsNullOrEmpty(testInfo.TestNamespace) &&
+                            testInfo.TestNamespace.StartsWith(excludedNamespace, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Test is in an excluded namespace, skip it
+                            return;
+                        }
+                    }
+                }
+                
                 // Apply filter if specified
                 if (string.IsNullOrEmpty(filter) || 
                     testInfo.TestName.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -264,6 +281,22 @@ namespace UMCP.Editor.Tools
                     ContainerScript = ExtractContainerScript(testNode.FullName)
                 };
                 
+                // Check if test is in an excluded namespace
+                var excludedNamespaces = UMCPSettings.Instance.ExcludedTestNamespaces;
+                if (excludedNamespaces != null && excludedNamespaces.Length > 0)
+                {
+                    foreach (var excludedNamespace in excludedNamespaces)
+                    {
+                        if (!string.IsNullOrEmpty(excludedNamespace) && 
+                            !string.IsNullOrEmpty(testInfo.TestNamespace) &&
+                            testInfo.TestNamespace.StartsWith(excludedNamespace, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Test is in an excluded namespace, skip it
+                            return;
+                        }
+                    }
+                }
+                
                 // Apply filter if specified
                 if (string.IsNullOrEmpty(filter) || 
                     testInfo.TestName.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -310,6 +343,22 @@ namespace UMCP.Editor.Tools
         /// </summary>
         private static bool ShouldIncludeTest(TestInfo testInfo, GetTestsParameters parameters)
         {
+            // Check if test is in an excluded namespace
+            var excludedNamespaces = UMCPSettings.Instance.ExcludedTestNamespaces;
+            if (excludedNamespaces != null && excludedNamespaces.Length > 0)
+            {
+                foreach (var excludedNamespace in excludedNamespaces)
+                {
+                    if (!string.IsNullOrEmpty(excludedNamespace) && 
+                        !string.IsNullOrEmpty(testInfo.TestNamespace) &&
+                        testInfo.TestNamespace.StartsWith(excludedNamespace, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Test is in an excluded namespace, skip it
+                        return false;
+                    }
+                }
+            }
+            
             // Apply filter if specified
             if (!string.IsNullOrEmpty(parameters.Filter))
             {

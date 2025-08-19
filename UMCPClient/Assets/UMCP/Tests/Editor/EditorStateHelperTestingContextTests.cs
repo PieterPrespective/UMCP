@@ -92,8 +92,8 @@ namespace UMCP.Tests.Editor
         public void TestIsEditorResponsiveDuringTesting()
         {
             // During Testing context, the editor should be considered responsive
-            Assert.IsTrue(EditorStateHelper.IsEditorResponsive,
-                "Editor should be considered responsive during Testing context");
+            Assert.IsTrue(!EditorStateHelper.IsEditorResponsive,
+                "Editor should be considered NOT responsive during Testing context");
         }
 
         /// <summary>

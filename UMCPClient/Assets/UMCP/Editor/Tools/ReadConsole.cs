@@ -114,10 +114,12 @@ namespace UMCP.Editor.Tools
                 else if (action == "get")
                 {
                     // Extract parameters for 'get'
-                    var types = new List<string> { "error", "warning", "log" };
+                    List<string> ALL_TYPES = new List<string> { "error", "warning", "log", "exception", "assert"};
+
+                    var types = new List<string>(ALL_TYPES);
                     if (@params != null)
                     {
-                        types = (@params["types"] as JArray)?.Select(t => t.ToString().ToLower()).ToList() ?? new List<string> { "error", "warning", "log" };
+                        types = (@params["types"] as JArray)?.Select(t => t.ToString().ToLower()).ToList() ?? new List<string>(ALL_TYPES);
                     }
 
 
@@ -154,7 +156,7 @@ namespace UMCP.Editor.Tools
                     }
 
                     if (types.Contains("all")) {
-                        types = new List<string> { "error", "warning", "log" }; // Expand 'all'
+                        types = new List<string>(ALL_TYPES); // Expand 'all'
                     }
 
                     if (!string.IsNullOrEmpty(sinceTimestampStr))
@@ -228,10 +230,12 @@ namespace UMCP.Editor.Tools
                  if (logEntryType == null) throw new Exception("Could not find internal type UnityEditor.LogEntry during GetConsoleEntries.");
                  object logEntryInstance = Activator.CreateInstance(logEntryType); 
 
-                 for (int i = 0; i < totalEntries; i++)
+                 // Iterate in reverse order to get newest entries first
+                 for (int i = totalEntries - 1; i >= 0; i--)
                  {
-                     // Get the entry data into our instance using reflection
-                     try
+                    //Debug.Log($"[READCONSOLE] attempting to read {i} of {totalEntries}");
+                    // Get the entry data into our instance using reflection
+                    try
                      {
                          _getEntryMethod.Invoke(null, new object[] { i, logEntryInstance });
                      }
@@ -260,12 +264,16 @@ namespace UMCP.Editor.Tools
                          continue;
                      }
 
-                     if (string.IsNullOrEmpty(message)) continue; // Skip empty messages
+                    
+
+                    if (string.IsNullOrEmpty(message)) continue; // Skip empty messages
 
                      // --- Filtering ---
                      // Filter by type
                      LogType currentType = GetLogTypeFromMode(mode);
-                     if (!types.Contains(currentType.ToString().ToLowerInvariant()))
+                    //Debug.Log($"[READCONSOLE] Entry {i}/{totalEntries}: mode={mode} = {currentType}, message='{message}', file='{file}', line={line}, types={string.Join(',', types)}");
+                    //Debug.Log($"[READCONSOLE] {currentType.ToString().ToLowerInvariant()} == {string.Join(',', types)}");
+                    if (!types.Contains(currentType.ToString().ToLowerInvariant()))
                      {
                          continue;
                      }
@@ -360,19 +368,35 @@ namespace UMCP.Editor.Tools
 
          private static LogType GetLogTypeFromMode(int mode)
          {
-             // First, determine the type based on the original logic (most severe first)
-             LogType initialType;
+            //The bitsearch mode doesn't seem to work as expected, so we use a switch statement with concrete int values instead.
+            switch (mode)
+            {
+                case 8405248: // ScriptingError | Error
+                    return LogType.Error;
+                case 10502144: // ScriptingAssertion | Assert
+                    return LogType.Assert;
+                case 8405504: // ScriptingWarning | Warning
+                    return LogType.Warning;
+                case 8406016: // ScriptingLog
+                    return LogType.Log;
+                case 12714240: // ScriptingException | Error | kFatal?
+                    return LogType.Exception;
+            }
+
+
+            // First, determine the type based on the original logic (most severe first)
+            LogType initialType;
              if ((mode & (ModeBitError | ModeBitScriptingError | ModeBitException | ModeBitScriptingException)) != 0) { 
                  initialType = LogType.Error;
              }
              else if ((mode & (ModeBitAssert | ModeBitScriptingAssertion)) != 0) { 
-                 initialType = LogType.Assert;
-             }
-             else if ((mode & (ModeBitWarning | ModeBitScriptingWarning)) != 0) { 
                  initialType = LogType.Warning;
              }
+             else if ((mode & (ModeBitWarning | ModeBitScriptingWarning)) != 0) { 
+                 initialType = LogType.Log;
+             }
              else { 
-                 initialType = LogType.Log; 
+                 initialType = LogType.Assert; 
              }
 
              // Return the correct log type without any remapping

@@ -195,7 +195,7 @@ namespace UMCP.Editor.Tools
             // Reset completion flag for this run
             testRunCompleted = false;
             
-            Debug.Log($"[RunTests] Starting test execution for mode: {mode}, Filter: {string.Join(", ", filter ?? new string[0])}, Step: {stepGuid}");
+            //Debug.Log($"[RunTests] Starting test execution for mode: {mode}, Filter: {string.Join(", ", filter ?? new string[0])}, Step: {stepGuid}");
             
             // Execute tests through forwarder
             TestRunnerAPIForwarderUtility.ExecuteTests(mode, filter);

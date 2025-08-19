@@ -1,7 +1,8 @@
-using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Newtonsoft.Json.Linq;
+using System.ComponentModel;
+using System.IO;
 using UMCPServer.Services;
 
 namespace UMCPServer.Tools;
@@ -12,9 +13,21 @@ namespace UMCPServer.Tools;
 [McpServerToolType]
 public class RunTestsTool
 {
+    /// <summary>
+    /// Logger used for unit- and integration testing 
+    /// </summary>
     private readonly ILogger<RunTestsTool> _logger;
+
+    /// <summary>
+    /// Connection service to Unity Editor
+    /// </summary>
     private readonly IUnityConnectionService _unityConnection;
-    
+
+    /// <summary>
+    /// Create a new instance of the RunTestsTool
+    /// </summary>
+    /// <param name="logger">linked logger</param>
+    /// <param name="unityConnection">linked unity connection</param>
     public RunTestsTool(ILogger<RunTestsTool> logger, IUnityConnectionService unityConnection)
     {
         _logger = logger;
@@ -25,7 +38,7 @@ public class RunTestsTool
     /// Runs specified tests in the Unity Test Runner
     /// </summary>
     [McpServerTool]
-    [Description("Run the given tests in the Unity3D Testrunner. Automatically marks a new step for logging.")]
+    [Description("Run the given tests in the Unity3D Testrunner. Automatically marks a new step for logging. ALWAYS run the 'ForceUpdateEditor' tool before using this tool and only use it after successful result.")]
     public async Task<object> RunTests(
         [Description("The mode of the tests to run; either 'EditMode', 'PlayMode' or 'All'")]
         string TestMode = "All",
@@ -65,6 +78,89 @@ public class RunTestsTool
                 };
             }
             
+            // If a filter is provided, validate that tests exist with that filter
+            if (Filter != null && Filter.Length > 0)
+            {
+                _logger.LogInformation("Validating filter by running GetTests first with filter: {Filter}", string.Join(", ", Filter));
+                
+                // For each filter, run GetTests to validate it exists
+                var validatedFilters = new List<string>();
+                var notFoundFilters = new List<string>();
+                
+                foreach (var filterItem in Filter)
+                {
+                    // Build parameters for GetTests
+                    var getTestsParams = new JObject
+                    {
+                        ["TestMode"] = TestMode,
+                        ["Filter"] = filterItem
+                    };
+                    
+                    // Send GetTests command to Unity
+                    var getTestsResponse = await _unityConnection.SendCommandAsync("get_tests", getTestsParams, cancellationToken);
+                    
+                    if (getTestsResponse != null && getTestsResponse.Value<string>("status") != "error")
+                    {
+                        // Check if any tests were found
+                        var data = getTestsResponse.Value<JArray>("data");
+                        if (data != null && data.Count > 0)
+                        {
+                            // Tests found, this filter is valid
+                            // Check if we need to use the full test name format
+                            var foundTests = data.Select(test => 
+                            {
+                                //The 'Testname' property will also contain the namespaces and class names, so we can use it directly
+                                return test.Value<string>("TestName");
+                            }).ToList();
+                            
+                            // Check if the filter matches exactly or if we need to use the full name
+                            var exactMatch = foundTests.FirstOrDefault(t => t.EndsWith($".{filterItem}") || t == filterItem);
+                            if (exactMatch != null)
+                            {
+                                // Use the exact match for the filter
+                                validatedFilters.Add(exactMatch);
+                                _logger.LogInformation("Filter '{Filter}' resolved to full test name: '{FullName}'", filterItem, exactMatch);
+                            }
+                            else
+                            {
+                                // Use the original filter if it found tests
+                                validatedFilters.Add(filterItem);
+                                _logger.LogInformation("Filter '{Filter}' found {Count} tests", filterItem, data.Count);
+                            }
+                        }
+                        else
+                        {
+                            notFoundFilters.Add(filterItem);
+                            _logger.LogWarning("No tests found for filter: {Filter}", filterItem);
+                        }
+                    }
+                    else
+                    {
+                        notFoundFilters.Add(filterItem);
+                        _logger.LogWarning("Failed to validate filter: {Filter}", filterItem);
+                    }
+                }
+                
+                // If no valid filters found, return error
+                if (validatedFilters.Count == 0)
+                {
+                    return new
+                    {
+                        success = false,
+                        error = $"No tests found matching the provided filter(s): {string.Join(", ", Filter)}. Please run the GetTests tool first to find the correct filter format. Note that test names should typically include the class name (e.g., 'TestClassName.TestMethodName')."
+                    };
+                }
+                
+                // If some filters were not found, log a warning but continue with valid ones
+                if (notFoundFilters.Count > 0)
+                {
+                    _logger.LogWarning("Some filters did not match any tests: {Filters}. Continuing with valid filters.", string.Join(", ", notFoundFilters));
+                }
+                
+                // Update Filter to use validated filters
+                Filter = validatedFilters.ToArray();
+            }
+            
             // Build parameters for the Unity command
             var parameters = new JObject
             {
@@ -81,10 +177,16 @@ public class RunTestsTool
             {
                 parameters["Filter"] = new JArray();
             }
-            
+
+            DateTime testStartTime = DateTime.Now;
+
+
+            _logger.LogInformation($"Actually running the tests with filter size {((Filter == null) ? "NULL" : Filter.Length.ToString())}...");
             // Send command to Unity - this will start the tests
             var response = await _unityConnection.SendCommandAsync("run_tests", parameters, cancellationToken);
             
+
+
             if (response == null)
             {
                 return new
@@ -119,7 +221,7 @@ public class RunTestsTool
                 await Task.Delay(2000, cancellationToken); // Initial delay to let tests start
 
                 // Poll for test completion with exponential backoff
-                var maxAttempts = 30; // Maximum 30 attempts
+                var maxAttempts = 30; // Base maximum attempts
                 var delayMs = 1000; // Start with 1 second
                 var maxDelayMs = 5000; // Max 5 seconds between attempts
                 var completed = false;
@@ -127,6 +229,9 @@ public class RunTestsTool
                 var completionDetectedAttempt = 0;
                 var maxPostCompletionAttempts = 5; // Continue polling for 5 more attempts after completion
                 JObject completionData = null;
+                var consecutiveFailures = 0; // Track consecutive polling failures
+                var domainReloadDetected = false; // Track if domain reload is suspected
+                const int maxConsecutiveFailures = 10; // Allow up to 10 consecutive failures
 
                 for (int attempt = 0; attempt < maxAttempts && !completed; attempt++)
                 {
@@ -140,17 +245,94 @@ public class RunTestsTool
                         ["format"] = "detailed"
                     };
 
-                    var consoleResponse = await _unityConnection.SendCommandAsync("read_console", consoleParams, cancellationToken);
+                    JObject consoleResponse = null;
+                    
+                    try
+                    {
+                        consoleResponse = await _unityConnection.SendCommandAsync("read_console", consoleParams, cancellationToken);
+                    }
+                    catch (InvalidOperationException ex) when (ex.Message.Contains("Not connected"))
+                    {
+                        consecutiveFailures++;
+                        _logger.LogInformation("Unity connection lost during polling (attempt {Attempt}), likely due to domain reload. Will retry... (consecutive failures: {ConsecutiveFailures})", 
+                            attempt + 1, consecutiveFailures);
+                        
+                        // Check if we should extend timeout for domain reload
+                        if (consecutiveFailures >= 3 && !domainReloadDetected)
+                        {
+                            domainReloadDetected = true;
+                            maxAttempts += 20; // Extend timeout for domain reload
+                            _logger.LogInformation("Multiple consecutive failures detected, extending timeout by 20 attempts for potential domain reload (new max: {MaxAttempts})", maxAttempts);
+                        }
+                        
+                        if (consecutiveFailures >= maxConsecutiveFailures)
+                        {
+                            _logger.LogError("Too many consecutive communication failures ({Count}), giving up", consecutiveFailures);
+                            return new
+                            {
+                                success = false,
+                                error = "Persistent communication failure with Unity after domain reload attempts. Unity may be unresponsive."
+                            };
+                        }
+                        
+                        // Continue to next attempt
+                        await Task.Delay(delayMs, cancellationToken);
+                        delayMs = Math.Min(delayMs * 2, maxDelayMs);
+                        continue;
+                    }
+                    catch (Exception ex) when (ex.Message.Contains("Failed to communicate with Unity"))
+                    {
+                        consecutiveFailures++;
+                        _logger.LogWarning("Communication error during polling (attempt {Attempt}): {Error}. Continuing... (consecutive failures: {ConsecutiveFailures})", 
+                            attempt + 1, ex.Message, consecutiveFailures);
+                        
+                        if (consecutiveFailures >= maxConsecutiveFailures)
+                        {
+                            _logger.LogError("Too many consecutive communication failures ({Count}), giving up", consecutiveFailures);
+                            return new
+                            {
+                                success = false,
+                                error = $"Persistent communication failure with Unity: {ex.Message}"
+                            };
+                        }
+                        
+                        // Continue to next attempt
+                        await Task.Delay(delayMs, cancellationToken);
+                        delayMs = Math.Min(delayMs * 2, maxDelayMs);
+                        continue;
+                    }
+
+                    // Handle successful response
+
+                    //_logger.LogInformation("[RUNTESTSTOOL] Console response: {Response}", consoleResponse["success"].ToString());
+
+
+
 
                     if (consoleResponse != null && consoleResponse["success"]?.Value<bool>() == true)
                     {
+                        // Reset consecutive failures on successful response
+                        if (consecutiveFailures > 0)
+                        {
+                            _logger.LogInformation("Connection restored after {FailureCount} consecutive failures", consecutiveFailures);
+                            consecutiveFailures = 0;
+                        }
+                        
                         var entries = consoleResponse["data"] as JArray;
+
+                        //_logger.LogInformation($"[RUNTESTSTOOL] # of entries:{((entries == null) ? "NULL" : entries.Count)}");
+
+
                         if (entries != null)
                         {
                             // Look for completion message
-                            foreach (var entry in entries.Reverse()) // Check newest first
+                            // Note: ReadConsole now returns newest entries first, so no need to reverse
+                            int cnt = 0;
+                            foreach (var entry in entries) // Already newest first from ReadConsole
                             {
                                 string message;
+
+                                
 
                                 // Handle both plain format (string) and detailed format (object with message property)
                                 if (entry.Type == JTokenType.String)
@@ -164,8 +346,15 @@ public class RunTestsTool
                                     message = entry["message"]?.Value<string>() ?? "";
                                 }
 
+
+                                //_logger.LogInformation($"[RUNTESTSTOOL] Message {cnt}/{entries.Count} = {message}");
+
+
                                 if (message.Contains("[RunTests] TEST_EXECUTION_COMPLETED"))
                                 {
+
+
+
                                     _logger.LogInformation("Test execution completed, parsing results...");
 
                                     // Mark completion detected but continue polling to capture file paths
@@ -220,8 +409,40 @@ public class RunTestsTool
                                         // Check for test result file paths
                                         if (logMessage.Contains("[RunTests] TEST_RESULTS_FILE_PATH:"))
                                         {
+                                           
+
+
                                             var pathStart = logMessage.IndexOf("TEST_RESULTS_FILE_PATH:") + "TEST_RESULTS_FILE_PATH:".Length;
                                             var path = logMessage.Substring(pathStart).Trim();
+
+                                            //Validate the found result file actually belongs to the current test run
+                                            string sampleDate = "20250819_134941.xml";
+                                            string testResultTime = path.Substring(path.Length - sampleDate.Length, sampleDate.Length - 4);
+
+                                            DateTime testResultTimeParsed = default;
+                                            try
+                                            {
+                                                testResultTimeParsed = DateTime.ParseExact(testResultTime, "yyyyMMdd_HHmmss", null);
+                                            }
+                                            catch
+                                            {
+                                                _logger.LogWarning("Failed to parse test result time from path '{Path}'. Skipping this file.", path);
+                                                continue; // Skip this file if parsing fails
+                                            }
+
+                                            if(testStartTime > testResultTimeParsed)
+                                                {
+                                                _logger.LogWarning("Test result file path '{Path}' has a timestamp earlier than the test start time. Skipping this file.", path);
+                                                continue; // Skip this file if it doesn't match the test run
+                                                }
+
+
+
+                                            _logger.LogInformation(testStartTime.ToString("yyyyMMdd_HHmmss") + " vs " + testResultTimeParsed.ToString("yyyyMMdd_HHmmss") + " = " + (testStartTime < testResultTimeParsed), attempt);
+                                            
+
+
+
                                             if (!string.IsNullOrEmpty(path))
                                             {
                                                 testResultFilePaths.Add(path);
@@ -238,6 +459,29 @@ public class RunTestsTool
                                                 // Clear existing paths and use the combined list
                                                 testResultFilePaths.Clear();
                                                 testResultFilePaths.AddRange(pathsString.Split(';').Where(p => !string.IsNullOrEmpty(p)));
+
+                                                for(int i = testResultFilePaths.Count - 1; i >= 0; i--)
+                                                    {
+                                                    // Validate the found result file actually belongs to the current test run
+                                                    string sampleDate = "20250819_134941.xml";
+                                                    string testResultTimeAll = testResultFilePaths[i].Substring(testResultFilePaths[i].Length - sampleDate.Length, sampleDate.Length - 4);
+
+                                                    DateTime testResultTimeParsedAll = default;
+                                                    try
+                                                    {
+                                                        testResultTimeParsedAll = DateTime.ParseExact(testResultTimeAll, "yyyyMMdd_HHmmss", null);
+                                                    }
+                                                    catch
+                                                    {
+                                                        _logger.LogWarning("Failed to parse test result time from path '{Path}'. Skipping this file.", testResultFilePaths[i]);
+                                                        continue; // Skip this file if parsing fails
+                                                    }
+                                                    if(testStartTime > testResultTimeParsedAll)
+                                                    {
+                                                        _logger.LogWarning("Test result file path '{Path}' has a timestamp earlier than the test start time. Skipping this file.", testResultFilePaths[i]);
+                                                        testResultFilePaths.RemoveAt(i--); // Remove and adjust index
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -288,7 +532,40 @@ public class RunTestsTool
 
                                     break; // Exit the foreach loop
                                 }
+                                cnt++;
                             }
+                        }
+                    }
+                    else if (consoleResponse == null)
+                    {
+                        consecutiveFailures++;
+                        _logger.LogWarning("Received null response from Unity console (attempt {Attempt}), may be reconnecting after domain reload (consecutive failures: {ConsecutiveFailures})", 
+                            attempt + 1, consecutiveFailures);
+                        
+                        if (consecutiveFailures >= maxConsecutiveFailures)
+                        {
+                            _logger.LogError("Too many consecutive null responses ({Count}), giving up", consecutiveFailures);
+                            return new
+                            {
+                                success = false,
+                                error = "Persistent null responses from Unity. Unity may be unresponsive."
+                            };
+                        }
+                    }
+                    else
+                    {
+                        consecutiveFailures++;
+                        _logger.LogWarning("Received unsuccessful response from Unity console (attempt {Attempt}) (consecutive failures: {ConsecutiveFailures})", 
+                            attempt + 1, consecutiveFailures);
+                        
+                        if (consecutiveFailures >= maxConsecutiveFailures)
+                        {
+                            _logger.LogError("Too many consecutive unsuccessful responses ({Count}), giving up", consecutiveFailures);
+                            return new
+                            {
+                                success = false,
+                                error = "Persistent unsuccessful responses from Unity. Unity may be in an error state."
+                            };
                         }
                     }
 
@@ -316,11 +593,31 @@ public class RunTestsTool
                     return result;
                 }
 
-                // Timeout - tool execution failed
+                // Timeout - check if we have any completion data to return
+                if (completionData != null)
+                {
+                    _logger.LogWarning("Polling timed out but test execution had completed. Returning available completion data.");
+                    var timeoutResult = new Dictionary<string, object>();
+                    foreach (var property in completionData.Properties())
+                    {
+                        timeoutResult[property.Name] = ReadConsoleTool.ConvertJTokenToObjectSmart(property.Value);
+                    }
+                    // Add timeout warning to message
+                    if (timeoutResult.ContainsKey("message"))
+                    {
+                        timeoutResult["message"] = timeoutResult["message"] + " (Note: Polling timed out but test execution had completed)";
+                    }
+                    return timeoutResult;
+                }
+                
+                // True timeout - no completion detected
                 return new
                 {
                     success = false,
-                    error = "Test runner timed out after waiting for completion. Tests may still be running in Unity. This is a tool execution failure, not a test failure."
+                    error = "Test runner timed out after waiting for completion. Tests may still be running in Unity. This is a tool execution failure, not a test failure.",
+                    consecutiveFailures = consecutiveFailures,
+                    domainReloadDetected = domainReloadDetected,
+                    maxAttemptsUsed = maxAttempts
                 };
             }
             

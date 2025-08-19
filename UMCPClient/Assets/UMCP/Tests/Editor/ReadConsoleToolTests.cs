@@ -99,6 +99,8 @@ namespace UMCP.Tests.Editor
 
         #region Direct Handler Tests
 
+
+
         [Test]
         public void DirectHandler_ClearConsole_Success()
         {
@@ -490,6 +492,103 @@ namespace UMCP.Tests.Editor
                 }
             });
         }
+
+        [UnityTest]
+        public IEnumerator TestValidMessageTypeInterpretation()
+        {
+            string logMsg = "[ReadConsoleTest] This is a normal log message";
+            string warningMsg = "[ReadConsoleTest] This is a Warning log message";
+            string errorMsg = "[ReadConsoleTest] This is an Error log message";
+            string exceptionMsg = "[ReadConsoleTest] This is an Exception log message";
+            string assertMsg = "[ReadConsoleTest] This is an Assert log message";
+
+
+            Debug.Log(logMsg);
+            yield return executeLogTypeTest("log", new string[] { logMsg }, 10);
+
+            Debug.LogWarning(warningMsg);
+            yield return executeLogTypeTest("warning", new string[] { warningMsg }, 10);
+
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Error, errorMsg);
+            Debug.LogError(errorMsg);
+            yield return executeLogTypeTest("error", new string[] { errorMsg }, 10);
+
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Exception, "Exception: " + exceptionMsg);
+            Debug.LogException(new System.Exception(exceptionMsg));
+            yield return executeLogTypeTest("exception", new string[] { "Exception: " + exceptionMsg }, 10);
+
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Assert, assertMsg);
+            Debug.LogAssertion(assertMsg);
+            yield return executeLogTypeTest("assert", new string[] { assertMsg }, 10);
+
+            Debug.Log(">>> Testing all log types together");
+            yield return executeLogTypeTest("all", new string[] { logMsg, warningMsg, errorMsg, "Exception: " + exceptionMsg, assertMsg }, 40, true);
+        }
+
+        private IEnumerator executeLogTypeTest(string _msgType, string[] _expectedMsgs, int _limit, bool _ignoreMsgtype = false)
+        {
+            Command command = new Command
+            {
+                type = "read_console",
+                @params = new JObject
+                {
+                    ["action"] = "get",
+                    ["types"] = new JArray { _msgType },
+                    ["count"] = _limit
+                }
+            };
+
+            yield return ExecuteTCPCommandTest(command, (response) =>
+            {
+                Assert.AreEqual("success", response["status"]?.ToString(), $"'{_msgType}' types filter should succeed via TCP");
+                Assert.IsNotNull(response["result"], $"'{_msgType}' types should return result");
+
+                JObject result = response["result"] as JObject;
+                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Handler result should indicate success");
+                Assert.IsNotNull(result["data"], $"'{_msgType}' types should contain data array");
+
+                JArray entries = result["data"] as JArray;
+                Assert.IsNotNull(entries, "Data should be an array");
+
+                bool[] fndMsgs = new bool[_expectedMsgs.Length];
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    JObject entry = entries[i] as JObject;
+                    Assert.IsNotNull(entry, "Each entry should be a JObject");
+                    if(!_ignoreMsgtype)
+                    {
+                        Assert.AreEqual(_msgType, entry["type"]?.ToString().ToLower(), $"Entry type should be '{_msgType}'");
+                    }
+                    int idx = System.Array.IndexOf(_expectedMsgs, entry["message"]?.ToString());
+                    if (idx > -1)
+                    {
+                        fndMsgs[idx] = true;
+                    }
+                }
+                List<string> notFoundMsgs = new List<string>();
+                for (int i = 0; i < fndMsgs.Length; i++)
+                {
+                    if (!fndMsgs[i])
+                    {
+                        notFoundMsgs.Add(_expectedMsgs[i]);
+                    }
+                }
+
+
+
+                Assert.IsTrue(notFoundMsgs.Count == 0, $"Missed one or more expected messages in the results;{string.Join(',', notFoundMsgs)}");
+                Assert.LessOrEqual(entries.Count, _limit, "Should respect count limit");
+            });
+        }
+
+
+
+
+
+
+
+
+
 
         [UnityTest]
         public IEnumerator TCPTest_GetConsoleEntries_AllTypes_Success()

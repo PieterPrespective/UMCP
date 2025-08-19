@@ -20,7 +20,18 @@ public class GetTestsTool
         _logger = logger;
         _unityConnection = unityConnection;
     }
-    
+
+    public class GetTestToolResult
+    {
+        public string TestName = "";
+        public string TestAssembly = "";
+        public string TestNamespace = "";
+        public string ContainerScript = "";
+    }
+
+
+
+
     /// <summary>
     /// Retrieves a list of tests from the Unity project
     /// </summary>
@@ -101,12 +112,12 @@ public class GetTestsTool
             List<object> tests = new List<object>();
             if (data != null)
             {
-                tests = data.Select(test => new
+                tests = data.Select(test => new GetTestToolResult
                 {
-                    TestName = test.Value<string>("TestName"),
-                    TestAssembly = test.Value<string>("TestAssembly"),
-                    TestNamespace = test.Value<string>("TestNamespace"),
-                    ContainerScript = test.Value<string>("ContainerScript")
+                    TestName = test.Value<string>("TestName") ?? "",
+                    TestAssembly = test.Value<string>("TestAssembly") ?? "",
+                    TestNamespace = test.Value<string>("TestNamespace") ?? "",
+                    ContainerScript = test.Value<string>("ContainerScript") ?? ""
                 }).Cast<object>().ToList();
             }
             

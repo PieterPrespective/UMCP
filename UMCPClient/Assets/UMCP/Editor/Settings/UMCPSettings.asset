@@ -17,3 +17,5 @@ MonoBehaviour:
   bindAddress: 127.0.0.1
   socketTimeout: 60
   stateSendTimeout: 5
+  excludedTestNamespaces:
+  - u040.prespective

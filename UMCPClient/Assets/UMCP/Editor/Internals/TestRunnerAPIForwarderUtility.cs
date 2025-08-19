@@ -169,6 +169,8 @@ namespace UnityEditor.TestTools.TestRunner.Api
                 targetPlatform = null
             };
             
+            Debug.Log($"[TestRunnerAPIForwarder] Executing tests in {mode} mode with {((testNames != null) ? string.Join(',', testNames) : "NULL")} specified test(s)");
+
             if (testNames != null && testNames.Length > 0)
             {
                 var testFilter = new Filter()

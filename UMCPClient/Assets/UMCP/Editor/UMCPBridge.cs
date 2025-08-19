@@ -556,7 +556,16 @@ namespace UMCP.Editor
                     }
                     catch (Exception ex)
                     {
-                        Debug.LogError($"Error sending state to client: {ex.Message}");
+                        if(ex.Message.Contains("An established connection was aborted by the software in your host machine"))
+                            {
+                            Debug.LogWarning($"[UMCPBridge] TCP bridge interrupted (probably due to a domain reload): {ex.Message}");
+                            }
+                        else
+                            {
+                            Debug.LogError($"[UMCPBridge] Error sending state update to {client.Client.RemoteEndPoint}: {ex.Message}");
+                            }
+
+
                         disconnectedClients.Add(client);
                     }
                 }

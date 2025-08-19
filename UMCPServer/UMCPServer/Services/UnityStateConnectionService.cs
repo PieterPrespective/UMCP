@@ -189,8 +189,16 @@ public class UnityStateConnectionService : IUnityStateConnectionService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in state update listener");
-                break;
+                if (ex is OperationCanceledException)
+                {
+                    _logger.LogInformation("State update listener cancelled");
+                    break;
+                }
+                else
+                {
+                    _logger.LogError(ex, "Error in state update listener");
+                    break;
+                }
             }
         }
         

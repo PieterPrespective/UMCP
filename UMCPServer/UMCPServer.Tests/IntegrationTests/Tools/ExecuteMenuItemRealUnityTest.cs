@@ -232,6 +232,15 @@ public class {TestScriptName} : MonoBehaviour
     }
 }
 
+
+
+
+
+
+
+
+
+
 // Helper class for waiting
 public class WaitUntil : YieldInstruction
 {
@@ -245,12 +254,31 @@ public class WaitUntil : YieldInstruction
         TimeoutDuration = 30000; // 30 seconds default timeout
     }
     
-    public override bool IsDone => _predicate() || _stopwatch.ElapsedMilliseconds >= TimeoutDuration;
+    public override bool IsDone
+    {
+        get
+        {
+            return _predicate() || _stopwatch.ElapsedMilliseconds >= TimeoutDuration;
+        }
+    }
+        
+        
+        
+        
 }
 
 // Base class for yield instructions
-public abstract class YieldInstruction
+public abstract class YieldInstruction : IEnumerator
 {
     public abstract bool IsDone { get; }
     public int TimeoutDuration { get; set; } = 30000;
+
+    public object Current => null;
+
+    public bool MoveNext()
+    {
+        return !IsDone;
+    }
+
+    public virtual void Reset() { }
 }

@@ -33,11 +33,17 @@ namespace UMCP.Editor.Settings
         [Tooltip("Send timeout for state updates in seconds")]
         private int stateSendTimeout = 5;
         
+        [Header("Test Configuration")]
+        [SerializeField]
+        [Tooltip("Namespaces to exclude from test execution (e.g., 'u040.prespective')")]
+        private string[] excludedTestNamespaces = new string[] { "u040.prespective" };
+        
         public int CommandPort => commandPort;
         public int StatePort => statePort;
         public string BindAddress => bindAddress;
         public int SocketTimeout => socketTimeout;
         public int StateSendTimeout => stateSendTimeout;
+        public string[] ExcludedTestNamespaces => excludedTestNamespaces;
         
         /// <summary>
         /// Get or create the settings instance

@@ -99,7 +99,7 @@ public class ManageSceneToolTests : IntegrationTestBase
         }
         
         yield return null;
-        
+
         // Step 2: Connect to Unity
         Console.WriteLine($"Step {CurrentStep + 1}: Connecting to Unity...");
         Task<bool> connectTask = _unityConnection!.ConnectAsync();
