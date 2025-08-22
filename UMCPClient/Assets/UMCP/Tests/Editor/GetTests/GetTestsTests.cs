@@ -25,10 +25,10 @@ namespace UMCP.Tests.Editor.GetTests
                 ContainerScript = "MyClass"
             };
             
-            Assert.AreEqual("MyNamespace.MyClass.MyTestMethod", testInfo.TestName);
-            Assert.AreEqual("MyAssembly", testInfo.TestAssembly);
-            Assert.AreEqual("MyNamespace", testInfo.TestNamespace);
-            Assert.AreEqual("MyClass", testInfo.ContainerScript);
+            Assert.That(testInfo.TestName, Is.EqualTo("MyNamespace.MyClass.MyTestMethod"));
+            Assert.That(testInfo.TestAssembly, Is.EqualTo("MyAssembly"));
+            Assert.That(testInfo.TestNamespace, Is.EqualTo("MyNamespace"));
+            Assert.That(testInfo.ContainerScript, Is.EqualTo("MyClass"));
         }
         
         /// <summary>
@@ -43,8 +43,8 @@ namespace UMCP.Tests.Editor.GetTests
                 Filter = "MyTestFilter"
             };
             
-            Assert.AreEqual("EditMode", parameters.TestMode);
-            Assert.AreEqual("MyTestFilter", parameters.Filter);
+            Assert.That(parameters.TestMode, Is.EqualTo("EditMode"));
+            Assert.That(parameters.Filter, Is.EqualTo("MyTestFilter"));
         }
         
         /// <summary>
@@ -59,7 +59,7 @@ namespace UMCP.Tests.Editor.GetTests
         public void TestMode_ValidationShouldWork(string testMode, bool expectedValid)
         {
             bool isValid = testMode == "EditMode" || testMode == "PlayMode" || testMode == "All";
-            Assert.AreEqual(expectedValid, isValid);
+            Assert.That(isValid, Is.EqualTo(expectedValid));
         }
         
         /// <summary>
@@ -85,7 +85,7 @@ namespace UMCP.Tests.Editor.GetTests
                 }
             }
             
-            Assert.AreEqual(expectedNamespace, actualNamespace);
+            Assert.That(actualNamespace, Is.EqualTo(expectedNamespace));
         }
         
         /// <summary>
@@ -106,7 +106,7 @@ namespace UMCP.Tests.Editor.GetTests
                 actualScript = parts[parts.Length - 2];
             }
             
-            Assert.AreEqual(expectedScript, actualScript);
+            Assert.That(actualScript, Is.EqualTo(expectedScript));
         }
         
         /// <summary>
@@ -131,7 +131,7 @@ namespace UMCP.Tests.Editor.GetTests
                 testInfo.TestName.IndexOf(filter, System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                 testInfo.TestNamespace.IndexOf(filter, System.StringComparison.OrdinalIgnoreCase) >= 0;
             
-            Assert.AreEqual(expectedMatch, actualMatch);
+            Assert.That(actualMatch, Is.EqualTo(expectedMatch));
         }
     }
 }

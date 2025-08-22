@@ -77,7 +77,8 @@ public class ForceUpdateEditorToolTests
             ["error"] = "Unity command failed"
         };
         
-        _mockUnityConnection.Setup(x => x.SendCommandAsync("force_update_editor", null, It.IsAny<CancellationToken>()))
+        _mockUnityConnection.Setup(x => x.SendCommandAsync("force_update_editor", null, It.IsAny<CancellationToken>(),
+                It.Is<bool>(b => b == false)))
             .ReturnsAsync(failedResult);
         
         // Act
@@ -109,7 +110,7 @@ public class ForceUpdateEditorToolTests
             }
         };
         
-        _mockUnityConnection.Setup(x => x.SendCommandAsync("force_update_editor", null, It.IsAny<CancellationToken>()))
+        _mockUnityConnection.Setup(x => x.SendCommandAsync("force_update_editor", null, It.IsAny<CancellationToken>(), It.Is<bool>(b => b == false)))
             .ReturnsAsync(successResult);
         
         // Act
@@ -141,7 +142,7 @@ public class ForceUpdateEditorToolTests
             }
         };
         
-        _mockUnityConnection.Setup(x => x.SendCommandAsync("force_update_editor", null, It.IsAny<CancellationToken>()))
+        _mockUnityConnection.Setup(x => x.SendCommandAsync("force_update_editor", null, It.IsAny<CancellationToken>(), It.Is<bool>(b => b == false)))
             .ReturnsAsync(successResult);
         
         // Act - use very short timeout to force timeout
@@ -171,7 +172,7 @@ public class ForceUpdateEditorToolTests
             }
         };
         
-        _mockUnityConnection.Setup(x => x.SendCommandAsync("force_update_editor", null, It.IsAny<CancellationToken>()))
+        _mockUnityConnection.Setup(x => x.SendCommandAsync("force_update_editor", null, It.IsAny<CancellationToken>(), It.Is<bool>(b => b == false)))
             .ReturnsAsync(successResult);
         
         var cts = new CancellationTokenSource();

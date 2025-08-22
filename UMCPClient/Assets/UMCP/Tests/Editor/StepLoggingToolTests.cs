@@ -114,7 +114,7 @@ namespace UMCP.Tests.Editor
             object result = MarkStartOfNewStep.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
@@ -122,19 +122,19 @@ namespace UMCP.Tests.Editor
             Debug.Log($"MarkStartOfNewStep Result: {resultJson}");
 
             // Check for Response.Success format
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Mark step should succeed");
-            Assert.IsNotNull(resultObj["message"], "Should return a message");
-            Assert.IsNotNull(resultObj["data"], "Should return data with step information");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Mark step should succeed");
+            Assert.That(resultObj["message"], Is.Not.Null, "Should return a message");
+            Assert.That(resultObj["data"], Is.Not.Null, "Should return data with step information");
             
             // Verify data structure
             JObject data = resultObj["data"] as JObject;
-            Assert.AreEqual(testStepName, data["stepName"]?.ToString(), "Data should contain correct step name");
-            Assert.IsNotNull(data["timestamp"], "Data should contain timestamp");
-            Assert.IsNotNull(data["markerMessage"], "Data should contain marker message");
+            Assert.That(data["stepName"]?.ToString(), Is.EqualTo(testStepName), "Data should contain correct step name");
+            Assert.That(data["timestamp"], Is.Not.Null, "Data should contain timestamp");
+            Assert.That(data["markerMessage"], Is.Not.Null, "Data should contain marker message");
             
             string markerMessage = data["markerMessage"]?.ToString();
-            Assert.IsTrue(markerMessage.Contains(testStepName), "Marker message should contain step name");
-            Assert.IsTrue(markerMessage.Contains("[UMCP_STEP_START]"), "Marker message should contain start marker");
+            Assert.That(markerMessage.Contains(testStepName), Is.True, "Marker message should contain step name");
+            Assert.That(markerMessage.Contains("[UMCP_STEP_START]"), Is.True, "Marker message should contain start marker");
         }
 
         [Test]
@@ -150,15 +150,15 @@ namespace UMCP.Tests.Editor
             object result = MarkStartOfNewStep.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
 
             // Check for Response.Error format
-            Assert.AreEqual(false, resultObj["success"]?.ToObject<bool>(), "Empty step name should return error");
-            Assert.IsNotNull(resultObj["error"], "Error response should contain error message");
-            Assert.IsTrue(resultObj["error"].ToString().Contains("cannot be empty"), "Error should mention empty step name");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(false), "Empty step name should return error");
+            Assert.That(resultObj["error"], Is.Not.Null, "Error response should contain error message");
+            Assert.That(resultObj["error"].ToString().Contains("cannot be empty"), Is.True, "Error should mention empty step name");
         }
 
         [Test]
@@ -174,13 +174,13 @@ namespace UMCP.Tests.Editor
             object result = MarkStartOfNewStep.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
 
-            Assert.AreEqual(false, resultObj["success"]?.ToObject<bool>(), "Null step name should return error");
-            Assert.IsNotNull(resultObj["error"], "Error response should contain error message");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(false), "Null step name should return error");
+            Assert.That(resultObj["error"], Is.Not.Null, "Error response should contain error message");
         }
 
         [Test]
@@ -193,13 +193,13 @@ namespace UMCP.Tests.Editor
             object result = MarkStartOfNewStep.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
 
-            Assert.AreEqual(false, resultObj["success"]?.ToObject<bool>(), "Missing step name should return error");
-            Assert.IsNotNull(resultObj["error"], "Error response should contain error message");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(false), "Missing step name should return error");
+            Assert.That(resultObj["error"], Is.Not.Null, "Error response should contain error message");
         }
 
         [Test]
@@ -212,11 +212,11 @@ namespace UMCP.Tests.Editor
             string invalidMarker2 = "[UMCP_STEP_START] Step: 'DifferentStep' | Started at: 2023-01-01 12:00:00.000 [/UMCP_STEP_START]";
 
             // Act & Assert
-            Assert.IsTrue(MarkStartOfNewStep.IsStepStartMarker(validMarker, stepName), "Should recognize valid step marker");
-            Assert.IsFalse(MarkStartOfNewStep.IsStepStartMarker(invalidMarker1, stepName), "Should not recognize regular log message");
-            Assert.IsFalse(MarkStartOfNewStep.IsStepStartMarker(invalidMarker2, stepName), "Should not recognize different step marker");
-            Assert.IsFalse(MarkStartOfNewStep.IsStepStartMarker(null, stepName), "Should handle null message");
-            Assert.IsFalse(MarkStartOfNewStep.IsStepStartMarker("", stepName), "Should handle empty message");
+            Assert.That(MarkStartOfNewStep.IsStepStartMarker(validMarker, stepName), Is.True, "Should recognize valid step marker");
+            Assert.That(MarkStartOfNewStep.IsStepStartMarker(invalidMarker1, stepName), Is.False, "Should not recognize regular log message");
+            Assert.That(MarkStartOfNewStep.IsStepStartMarker(invalidMarker2, stepName), Is.False, "Should not recognize different step marker");
+            Assert.That(MarkStartOfNewStep.IsStepStartMarker(null, stepName), Is.False, "Should handle null message");
+            Assert.That(MarkStartOfNewStep.IsStepStartMarker("", stepName), Is.False, "Should handle empty message");
         }
 
         [Test]
@@ -228,10 +228,10 @@ namespace UMCP.Tests.Editor
             string malformedMessage = "[UMCP_STEP_START] Step: ExtractTestStep | Started at: 2023-01-01 12:00:00.000"; // Missing quotes
 
             // Act & Assert
-            Assert.AreEqual("ExtractTestStep", MarkStartOfNewStep.ExtractStepName(markerMessage), "Should extract correct step name");
-            Assert.IsNull(MarkStartOfNewStep.ExtractStepName(invalidMessage), "Should return null for invalid message");
-            Assert.IsNull(MarkStartOfNewStep.ExtractStepName(malformedMessage), "Should return null for malformed message");
-            Assert.IsNull(MarkStartOfNewStep.ExtractStepName(null), "Should handle null message");
+            Assert.That(MarkStartOfNewStep.ExtractStepName(markerMessage), Is.EqualTo("ExtractTestStep"), "Should extract correct step name");
+            Assert.That(MarkStartOfNewStep.ExtractStepName(invalidMessage), Is.Null, "Should return null for invalid message");
+            Assert.That(MarkStartOfNewStep.ExtractStepName(malformedMessage), Is.Null, "Should return null for malformed message");
+            Assert.That(MarkStartOfNewStep.ExtractStepName(null), Is.Null, "Should handle null message");
         }
 
         #endregion
@@ -252,7 +252,7 @@ namespace UMCP.Tests.Editor
             object result = RequestStepLogs.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
@@ -260,9 +260,9 @@ namespace UMCP.Tests.Editor
             Debug.Log($"RequestStepLogs NonExistent Result: {resultJson}");
 
             // Should return error for non-existent step
-            Assert.AreEqual(false, resultObj["success"]?.ToObject<bool>(), "Non-existent step should return error");
-            Assert.IsNotNull(resultObj["error"], "Error response should contain error message");
-            Assert.IsTrue(resultObj["error"].ToString().Contains("No start marker found"), "Error should mention missing marker");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(false), "Non-existent step should return error");
+            Assert.That(resultObj["error"], Is.Not.Null, "Error response should contain error message");
+            Assert.That(resultObj["error"].ToString().Contains("No start marker found"), Is.True, "Error should mention missing marker");
         }
 
         [Test]
@@ -278,14 +278,14 @@ namespace UMCP.Tests.Editor
             object result = RequestStepLogs.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
 
-            Assert.AreEqual(false, resultObj["success"]?.ToObject<bool>(), "Empty step name should return error");
-            Assert.IsNotNull(resultObj["error"], "Error response should contain error message");
-            Assert.IsTrue(resultObj["error"].ToString().Contains("cannot be empty"), "Error should mention empty step name");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(false), "Empty step name should return error");
+            Assert.That(resultObj["error"], Is.Not.Null, "Error response should contain error message");
+            Assert.That(resultObj["error"].ToString().Contains("cannot be empty"), Is.True, "Error should mention empty step name");
         }
 
         [Test]
@@ -298,13 +298,13 @@ namespace UMCP.Tests.Editor
             object result = RequestStepLogs.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
 
-            Assert.AreEqual(false, resultObj["success"]?.ToObject<bool>(), "Missing step name should return error");
-            Assert.IsNotNull(resultObj["error"], "Error response should contain error message");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(false), "Missing step name should return error");
+            Assert.That(resultObj["error"], Is.Not.Null, "Error response should contain error message");
         }
 
         #endregion
@@ -328,7 +328,7 @@ namespace UMCP.Tests.Editor
             // Verify mark was successful
             string markResultJson = JsonConvert.SerializeObject(markResult);
             JObject markResultObj = JObject.Parse(markResultJson);
-            Assert.AreEqual(true, markResultObj["success"]?.ToObject<bool>(), "Mark step should succeed");
+            Assert.That(markResultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Mark step should succeed");
 
             // Step 2: Generate some test logs after marking
             GenerateTestLogEntries($"AfterStep_{testStepName}");
@@ -344,30 +344,30 @@ namespace UMCP.Tests.Editor
             object requestResult = RequestStepLogs.HandleCommand(requestParameters);
 
             // Assert
-            Assert.IsNotNull(requestResult, "Request should return a result");
+            Assert.That(requestResult, Is.Not.Null, "Request should return a result");
             
             string requestResultJson = JsonConvert.SerializeObject(requestResult);
             JObject requestResultObj = JObject.Parse(requestResultJson);
 
             Debug.Log($"Integration RequestStepLogs Result: {requestResultJson}");
 
-            Assert.AreEqual(true, requestResultObj["success"]?.ToObject<bool>(), "Request step logs should succeed");
-            Assert.IsNotNull(requestResultObj["data"], "Should return log data");
+            Assert.That(requestResultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Request step logs should succeed");
+            Assert.That(requestResultObj["data"], Is.Not.Null, "Should return log data");
 
             JArray logEntries = requestResultObj["data"] as JArray;
-            Assert.IsNotNull(logEntries, "Data should be an array of log entries");
+            Assert.That(logEntries, Is.Not.Null, "Data should be an array of log entries");
             Assert.Greater(logEntries.Count, 0, "Should find logs after the step marker");
 
             // Verify the first entry is the step marker
             JObject firstEntry = logEntries[0] as JObject;
             string firstMessage = firstEntry["message"]?.ToString();
-            Assert.IsTrue(firstMessage.Contains("[UMCP_STEP_START]"), "First entry should be the step start marker");
-            Assert.IsTrue(firstMessage.Contains(testStepName), "First entry should contain the step name");
+            Assert.That(firstMessage.Contains("[UMCP_STEP_START]"), Is.True, "First entry should be the step start marker");
+            Assert.That(firstMessage.Contains(testStepName), Is.True, "First entry should contain the step name");
 
             // Verify some of our test logs are included
             bool foundTestLog = logEntries.Cast<JObject>().Any(entry => 
                 entry["message"]?.ToString().Contains($"AfterStep_{testStepName}") == true);
-            Assert.IsTrue(foundTestLog, "Should find test logs generated after step marker");
+            Assert.That(foundTestLog, Is.True, "Should find test logs generated after step marker");
         }
 
         [Test]
@@ -394,7 +394,7 @@ namespace UMCP.Tests.Editor
             string requestResultJson = JsonConvert.SerializeObject(requestResult);
             JObject requestResultObj = JObject.Parse(requestResultJson);
 
-            Assert.AreEqual(true, requestResultObj["success"]?.ToObject<bool>(), "Plain format request should succeed");
+            Assert.That(requestResultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Plain format request should succeed");
             
             JArray logEntries = requestResultObj["data"] as JArray;
             Assert.Greater(logEntries.Count, 0, "Should find logs");
@@ -402,7 +402,7 @@ namespace UMCP.Tests.Editor
             // In plain format, entries should be strings
             foreach (JToken entry in logEntries)
             {
-                Assert.IsTrue(entry.Type == JTokenType.String, "Plain format entries should be strings");
+                Assert.That(entry.Type == JTokenType.String, Is.True, "Plain format entries should be strings");
             }
         }
 
@@ -428,15 +428,15 @@ namespace UMCP.Tests.Editor
             {
                 Debug.Log($"TCP MarkStartOfNewStep Response: {response.ToString()}");
                 
-                Assert.AreEqual("success", response["status"]?.ToString(), "Bridge should succeed");
-                Assert.IsNotNull(response["result"], "Should return result");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Bridge should succeed");
+                Assert.That(response["result"], Is.Not.Null, "Should return result");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Handler should succeed");
-                Assert.IsNotNull(result["data"], "Should contain step data");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Handler should succeed");
+                Assert.That(result["data"], Is.Not.Null, "Should contain step data");
                 
                 JObject data = result["data"] as JObject;
-                Assert.AreEqual(testStepName, data["stepName"]?.ToString(), "Should contain correct step name");
+                Assert.That(data["stepName"]?.ToString(), Is.EqualTo(testStepName), "Should contain correct step name");
             });
         }
 
@@ -454,11 +454,11 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(command, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Bridge should succeed");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Bridge should succeed");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(false, result["success"]?.ToObject<bool>(), "Handler should return error");
-                Assert.IsNotNull(result["error"], "Should contain error message");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(false), "Handler should return error");
+                Assert.That(result["error"], Is.Not.Null, "Should contain error message");
             });
         }
 
@@ -478,11 +478,11 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(command, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Bridge should succeed");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Bridge should succeed");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(false, result["success"]?.ToObject<bool>(), "Handler should return error for non-existent step");
-                Assert.IsNotNull(result["error"], "Should contain error message");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(false), "Handler should return error for non-existent step");
+                Assert.That(result["error"], Is.Not.Null, "Should contain error message");
             });
         }
 
@@ -503,9 +503,9 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(markCommand, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Mark step should succeed via TCP");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Mark step should succeed via TCP");
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Mark handler should succeed");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Mark handler should succeed");
             });
 
             // Wait a moment and generate some test logs
@@ -528,11 +528,11 @@ namespace UMCP.Tests.Editor
             {
                 Debug.Log($"TCP RequestStepLogs Response: {response.ToString()}");
                 
-                Assert.AreEqual("success", response["status"]?.ToString(), "Request step logs should succeed via TCP");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Request step logs should succeed via TCP");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Request handler should succeed");
-                Assert.IsNotNull(result["data"], "Should return log data");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Request handler should succeed");
+                Assert.That(result["data"], Is.Not.Null, "Should return log data");
 
                 JArray logEntries = result["data"] as JArray;
                 Assert.Greater(logEntries.Count, 0, "Should find logs after the step marker");
@@ -541,12 +541,12 @@ namespace UMCP.Tests.Editor
                 bool foundMarker = logEntries.Cast<JObject>().Any(entry => 
                     entry["message"]?.ToString().Contains("[UMCP_STEP_START]") == true &&
                     entry["message"]?.ToString().Contains(testStepName) == true);
-                Assert.IsTrue(foundMarker, "Should find the step start marker in results");
+                Assert.That(foundMarker, Is.True, "Should find the step start marker in results");
 
                 // Verify our test logs are included
                 bool foundTestLog = logEntries.Cast<JObject>().Any(entry => 
                     entry["message"]?.ToString().Contains($"TCPTest_{testStepName}") == true);
-                Assert.IsTrue(foundTestLog, "Should find test logs generated after step marker");
+                Assert.That(foundTestLog, Is.True, "Should find test logs generated after step marker");
             });
         }
 
@@ -564,7 +564,7 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(markCommand, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Mark should succeed");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Mark should succeed");
             });
 
             yield return new WaitForSeconds(0.1f);
@@ -584,10 +584,10 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(requestCommand, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Plain format request should succeed via TCP");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Plain format request should succeed via TCP");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Plain format handler should succeed");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Plain format handler should succeed");
                 
                 JArray logEntries = result["data"] as JArray;
                 Assert.Greater(logEntries.Count, 0, "Should find logs");
@@ -595,7 +595,7 @@ namespace UMCP.Tests.Editor
                 // In plain format, entries should be strings
                 foreach (JToken entry in logEntries)
                 {
-                    Assert.IsTrue(entry.Type == JTokenType.String, "Plain format entries should be strings");
+                    Assert.That(entry.Type == JTokenType.String, Is.True, "Plain format entries should be strings");
                 }
             });
         }
@@ -621,10 +621,10 @@ namespace UMCP.Tests.Editor
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
 
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Should handle special characters in step name");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Should handle special characters in step name");
             
             JObject data = resultObj["data"] as JObject;
-            Assert.AreEqual(specialStepName, data["stepName"]?.ToString(), "Should preserve special characters");
+            Assert.That(data["stepName"]?.ToString(), Is.EqualTo(specialStepName), "Should preserve special characters");
         }
 
         [Test]
@@ -684,18 +684,18 @@ namespace UMCP.Tests.Editor
                 }
             }
 
-            Assert.AreEqual(true, requestResultObj["success"]?.ToObject<bool>(), 
+            Assert.That(requestResultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), 
                 $"Should succeed even with duplicate step names. Error: {requestResultObj["error"]?.ToString()}");
             
             JArray logEntries = requestResultObj["data"] as JArray;
-            Assert.IsNotNull(logEntries, "Should return log entries array");
+            Assert.That(logEntries, Is.Not.Null, "Should return log entries array");
             
             if (logEntries.Count > 0)
             {
                 // Should find logs from the most recent step marker
                 bool foundSecondOccurrence = logEntries.Cast<JObject>().Any(entry => 
                     entry["message"]?.ToString().Contains("SecondOccurrence") == true);
-                Assert.IsTrue(foundSecondOccurrence, "Should find logs from the most recent step marker");
+                Assert.That(foundSecondOccurrence, Is.True, "Should find logs from the most recent step marker");
             }
             else
             {
@@ -719,18 +719,18 @@ namespace UMCP.Tests.Editor
             string differentStepMarker = $"[UMCP_STEP_START] Step: 'DifferentStep' | Started at: 2023-01-01 12:15:00.000 [/UMCP_STEP_START]";
             
             // Act & Assert
-            Assert.IsTrue(MarkStartOfNewStep.IsStepStartMarker(validMarker1, testStepName), 
+            Assert.That(MarkStartOfNewStep.IsStepStartMarker(validMarker1, testStepName), Is.True, 
                 "Should recognize first step marker");
-            Assert.IsTrue(MarkStartOfNewStep.IsStepStartMarker(validMarker2, testStepName), 
+            Assert.That(MarkStartOfNewStep.IsStepStartMarker(validMarker2, testStepName), Is.True, 
                 "Should recognize second step marker");
-            Assert.IsFalse(MarkStartOfNewStep.IsStepStartMarker(differentStepMarker, testStepName), 
+            Assert.That(MarkStartOfNewStep.IsStepStartMarker(differentStepMarker, testStepName), Is.False, 
                 "Should not recognize different step marker");
                 
-            Assert.AreEqual(testStepName, MarkStartOfNewStep.ExtractStepName(validMarker1), 
+            Assert.That(MarkStartOfNewStep.ExtractStepName(validMarker1), Is.EqualTo(testStepName), 
                 "Should extract correct step name from first marker");
-            Assert.AreEqual(testStepName, MarkStartOfNewStep.ExtractStepName(validMarker2), 
+            Assert.That(MarkStartOfNewStep.ExtractStepName(validMarker2), Is.EqualTo(testStepName), 
                 "Should extract correct step name from second marker");
-            Assert.AreEqual("DifferentStep", MarkStartOfNewStep.ExtractStepName(differentStepMarker), 
+            Assert.That(MarkStartOfNewStep.ExtractStepName(differentStepMarker), Is.EqualTo("DifferentStep"), 
                 "Should extract correct step name from different step marker");
                 
             Debug.Log("Helper methods for step logging work correctly - the issue is in RequestStepLogs implementation");
@@ -767,12 +767,12 @@ namespace UMCP.Tests.Editor
             stopwatch.Stop();
 
             // Assert
-            Assert.IsNotNull(result, "Should return result");
+            Assert.That(result, Is.Not.Null, "Should return result");
             Assert.Less(stopwatch.ElapsedMilliseconds, 5000, "Should complete within reasonable time (5 seconds)");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Should succeed even with many logs");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Should succeed even with many logs");
         }
 
         #endregion

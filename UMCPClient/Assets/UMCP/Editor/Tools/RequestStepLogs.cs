@@ -65,10 +65,10 @@ namespace UMCP.Editor.Tools
                     {
                         foundStepStart = true;
                         // Include the marker itself
-                        stepLogs.Insert(0, FormatLogEntry(log, format));
+                        stepLogs.Add(FormatLogEntry(log, format));
                         
-                        // Now collect all logs after this marker (in forward order)
-                        for (int j = i + 1; j < logsArray.Length; j++)
+                        // Now collect all logs after this marker (in reverse order to get chronological order)
+                        for (int j = i - 1; j >= 0; j--)
                         {
                             stepLogs.Add(FormatLogEntry(logsArray[j], format));
                         }
@@ -91,10 +91,10 @@ namespace UMCP.Editor.Tools
                             string actualStepName = MarkStartOfNewStep.ExtractStepName(message) ?? stepName;
                             
                             // Include the marker itself
-                            stepLogs.Insert(0, FormatLogEntry(log, format));
+                            stepLogs.Add(FormatLogEntry(log, format));
                             
-                            // Collect all logs after this marker
-                            for (int j = i + 1; j < logsArray.Length; j++)
+                            // Collect all logs after this marker (in reverse order to get chronological order)
+                            for (int j = i - 1; j >= 0; j--)
                             {
                                 stepLogs.Add(FormatLogEntry(logsArray[j], format));
                             }

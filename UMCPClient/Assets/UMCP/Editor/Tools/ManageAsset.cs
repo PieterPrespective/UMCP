@@ -768,7 +768,7 @@ namespace UMCP.Editor.Tools
         private static bool SetPropertyOrField(object target, string memberName, JToken value, Type type = null)
         {
             type = type ?? target.GetType();
-            System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase;
+            System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.FlattenHierarchy | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase;
 
             try
             {

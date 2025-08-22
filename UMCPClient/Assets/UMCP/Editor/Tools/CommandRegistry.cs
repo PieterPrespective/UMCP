@@ -13,7 +13,6 @@ namespace UMCP.Editor.Tools
         // to the corresponding static HandleCommand method in the appropriate tool class.
         private static readonly Dictionary<string, Func<JObject, object>> _handlers = new()
         {
-            { "HandleManageScript", ManageScript.HandleCommand },
             { "HandleManageScene", ManageScene.HandleCommand },
             { "HandleManageEditor", ManageEditor.HandleCommand },
             { "HandleManageGameObject", ManageGameObject.HandleCommand },
@@ -21,6 +20,7 @@ namespace UMCP.Editor.Tools
             { "HandleReadConsole", ReadConsole.HandleCommand },
             { "HandleExecuteMenuItem", ExecuteMenuItem.HandleCommand },
             { "HandleGetProjectPath", GetProjectPath.HandleCommand },
+            { "HandleManageIntegrationTests", ManageIntegrationTests.HandleCommand },
         };
 
         /// <summary>

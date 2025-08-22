@@ -26,11 +26,11 @@ namespace UMCP.Tests.Editor.RunTests
                 Success = true
             };
             
-            Assert.AreEqual("MyNamespace.MyClass.MyTestMethod", testResult.TestName);
-            Assert.AreEqual("MyAssembly", testResult.TestAssembly);
-            Assert.AreEqual("MyNamespace", testResult.TestNamespace);
-            Assert.AreEqual("MyClass", testResult.ContainerScript);
-            Assert.IsTrue(testResult.Success);
+            Assert.That(testResult.TestName, Is.EqualTo("MyNamespace.MyClass.MyTestMethod"));
+            Assert.That(testResult.TestAssembly, Is.EqualTo("MyAssembly"));
+            Assert.That(testResult.TestNamespace, Is.EqualTo("MyNamespace"));
+            Assert.That(testResult.ContainerScript, Is.EqualTo("MyClass"));
+            Assert.That(testResult.Success, Is.True);
         }
         
         /// <summary>
@@ -47,12 +47,12 @@ namespace UMCP.Tests.Editor.RunTests
                 OutputLogData = false
             };
             
-            Assert.AreEqual("EditMode", parameters.TestMode);
-            Assert.AreEqual(2, parameters.Filter.Length);
-            Assert.AreEqual("Test1", parameters.Filter[0]);
-            Assert.AreEqual("Test2", parameters.Filter[1]);
-            Assert.IsTrue(parameters.OutputTestResults);
-            Assert.IsFalse(parameters.OutputLogData);
+            Assert.That(parameters.TestMode, Is.EqualTo("EditMode"));
+            Assert.That(parameters.Filter.Length, Is.EqualTo(2));
+            Assert.That(parameters.Filter[0], Is.EqualTo("Test1"));
+            Assert.That(parameters.Filter[1], Is.EqualTo("Test2"));
+            Assert.That(parameters.OutputTestResults, Is.True);
+            Assert.That(parameters.OutputLogData, Is.False);
         }
         
         /// <summary>
@@ -72,11 +72,11 @@ namespace UMCP.Tests.Editor.RunTests
                 LogData = "Test log data"
             };
             
-            Assert.IsFalse(result.AllSuccess);
-            Assert.AreEqual(2, result.TestResults.Count);
-            Assert.IsTrue(result.TestResults[0].Success);
-            Assert.IsFalse(result.TestResults[1].Success);
-            Assert.AreEqual("Test log data", result.LogData);
+            Assert.That(result.AllSuccess, Is.False);
+            Assert.That(result.TestResults.Count, Is.EqualTo(2));
+            Assert.That(result.TestResults[0].Success, Is.True);
+            Assert.That(result.TestResults[1].Success, Is.False);
+            Assert.That(result.LogData, Is.EqualTo("Test log data"));
         }
         
         /// <summary>
@@ -93,11 +93,11 @@ namespace UMCP.Tests.Editor.RunTests
             };
             
             bool allSuccess = testResults.All(r => r.Success);
-            Assert.IsTrue(allSuccess);
+            Assert.That(allSuccess, Is.True);
             
             testResults.Add(new TestResultData { Success = false });
             allSuccess = testResults.All(r => r.Success);
-            Assert.IsFalse(allSuccess);
+            Assert.That(allSuccess, Is.False);
         }
         
         /// <summary>
@@ -109,9 +109,9 @@ namespace UMCP.Tests.Editor.RunTests
             var guid = System.Guid.NewGuid();
             string stepGuid = $"RunTests_{guid:N}";
             
-            Assert.IsTrue(stepGuid.StartsWith("RunTests_"));
-            Assert.AreEqual(41, stepGuid.Length); // "RunTests_" (9) + 32 hex chars
-            Assert.IsFalse(stepGuid.Contains("-")); // N format removes hyphens
+            Assert.That(stepGuid.StartsWith("RunTests_"), Is.True);
+            Assert.That(stepGuid.Length, Is.EqualTo(41)); // "RunTests_" (9) + 32 hex chars
+            Assert.That(stepGuid.Contains("-"), Is.False); // N format removes hyphens
         }
         
         /// <summary>
@@ -127,7 +127,7 @@ namespace UMCP.Tests.Editor.RunTests
             var parts = fullName.Split('.');
             string actualAssembly = parts.Length > 0 ? parts[0] : "";
             
-            Assert.AreEqual(expectedAssembly, actualAssembly);
+            Assert.That(actualAssembly, Is.EqualTo(expectedAssembly));
         }
         
         /// <summary>
@@ -138,17 +138,17 @@ namespace UMCP.Tests.Editor.RunTests
         {
             // Empty filter
             var emptyFilter = new string[0];
-            Assert.AreEqual(0, emptyFilter.Length);
+            Assert.That(emptyFilter.Length, Is.EqualTo(0));
             
             // Null filter should be handled
             string[] nullFilter = null;
             var safeFilter = nullFilter ?? new string[0];
-            Assert.AreEqual(0, safeFilter.Length);
+            Assert.That(safeFilter.Length, Is.EqualTo(0));
             
             // Filter with values
             var filter = new[] { "Test1", "Test2", "Test3" };
-            Assert.AreEqual(3, filter.Length);
-            Assert.Contains("Test2", filter);
+            Assert.That(filter.Length, Is.EqualTo(3));
+            Assert.That(filter, Does.Contain("Test2"));
         }
         
         /// <summary>
@@ -160,10 +160,10 @@ namespace UMCP.Tests.Editor.RunTests
             var parameters = new RunTestsParameters();
             
             // Check default values (as they would be set in HandleCommand)
-            Assert.IsNull(parameters.TestMode); // Would default to "All" in handler
-            Assert.IsNull(parameters.Filter); // Would default to empty array in handler
-            Assert.IsFalse(parameters.OutputTestResults); // Would default to true in handler
-            Assert.IsFalse(parameters.OutputLogData); // Would default to true in handler
+            Assert.That(parameters.TestMode, Is.Null); // Would default to "All" in handler
+            Assert.That(parameters.Filter, Is.Null); // Would default to empty array in handler
+            Assert.That(parameters.OutputTestResults, Is.False); // Would default to true in handler
+            Assert.That(parameters.OutputLogData, Is.False); // Would default to true in handler
         }
     }
 }

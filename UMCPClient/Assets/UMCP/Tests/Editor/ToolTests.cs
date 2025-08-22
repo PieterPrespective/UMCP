@@ -79,38 +79,38 @@ namespace UMCP.Tests.Editor
                     JObject response = JObject.Parse(responseJson);
 
                     // Verify response structure
-                    Assert.IsNotNull(response["status"], "Response should contain a 'status' field");
-                    Assert.AreEqual("success", response["status"].ToString(), "Expected status to be 'success'");
-                    Assert.IsNotNull(response["result"], "Response should contain a 'result' field");
+                    Assert.That(response["status"], Is.Not.Null, "Response should contain a 'status' field");
+                    Assert.That(response["status"].ToString(), Is.EqualTo("success"), "Expected status to be 'success'");
+                    Assert.That(response["result"], Is.Not.Null, "Response should contain a 'result' field");
 
                     // Validate project path data
                     JObject result = response["result"] as JObject;
-                    Assert.IsNotNull(result, "Result should be a JSON object");
+                    Assert.That(result, Is.Not.Null, "Result should be a JSON object");
                     
                     // Log the full result JObject for debugging
                     Debug.Log($"GetProjectPath result: {result.ToString(Formatting.Indented)}");
                     
                     // The path data is nested in the "data" property
-                    Assert.IsNotNull(result["data"], "Result should contain a 'data' field");
+                    Assert.That(result["data"], Is.Not.Null, "Result should contain a 'data' field");
                     JObject pathData = result["data"] as JObject;
-                    Assert.IsNotNull(pathData, "The data field should be a JSON object");
+                    Assert.That(pathData, Is.Not.Null, "The data field should be a JSON object");
                     
                     // Verify the data paths
-                    Assert.IsNotNull(pathData["dataPath"], "Data should contain 'dataPath'");
-                    Assert.IsNotNull(pathData["projectPath"], "Data should contain 'projectPath'");
-                    Assert.IsNotNull(pathData["persistentDataPath"], "Data should contain 'persistentDataPath'");
-                    Assert.IsNotNull(pathData["streamingAssetsPath"], "Data should contain 'streamingAssetsPath'");
-                    Assert.IsNotNull(pathData["temporaryCachePath"], "Data should contain 'temporaryCachePath'");
+                    Assert.That(pathData["dataPath"], Is.Not.Null, "Data should contain 'dataPath'");
+                    Assert.That(pathData["projectPath"], Is.Not.Null, "Data should contain 'projectPath'");
+                    Assert.That(pathData["persistentDataPath"], Is.Not.Null, "Data should contain 'persistentDataPath'");
+                    Assert.That(pathData["streamingAssetsPath"], Is.Not.Null, "Data should contain 'streamingAssetsPath'");
+                    Assert.That(pathData["temporaryCachePath"], Is.Not.Null, "Data should contain 'temporaryCachePath'");
 
                     // Verify that the dataPath is correct
-                    Assert.AreEqual(Application.dataPath, pathData["dataPath"].ToString(), 
+                    Assert.That(pathData["dataPath"].ToString(), Is.EqualTo(Application.dataPath), 
                         "dataPath in response should match Application.dataPath");
                     
                     // Verify that projectPath + "Assets" equals dataPath
                     string projectPath = pathData["projectPath"].ToString();
 
                     //NOTE : the following only works on Windows, but is not necessary on other platforms
-                    Assert.AreEqual(Application.dataPath, projectPath +"/Assets", 
+                    Assert.That(projectPath +"/Assets", Is.EqualTo(Application.dataPath), 
                         "projectPath + 'Assets' should equal Application.dataPath");
                 }
             }
@@ -130,7 +130,6 @@ namespace UMCP.Tests.Editor
             // Test each registered command handler in the CommandRegistry
             string[] commandHandlers = new string[]
             {
-                "HandleManageScript",
                 "HandleManageScene",
                 "HandleManageEditor",
                 "HandleManageGameObject", 
@@ -144,7 +143,7 @@ namespace UMCP.Tests.Editor
             {
                 // Test getting the handler from CommandRegistry
                 var handler = CommandRegistry.GetHandler(handlerName);
-                Assert.IsNotNull(handler, $"Handler '{handlerName}' should be registered in CommandRegistry");
+                Assert.That(handler, Is.Not.Null, $"Handler '{handlerName}' should be registered in CommandRegistry");
 
                 // For each handler, create and send a command through the bridge to verify end-to-end functionality
                 // We'll use a simple test with GetProjectPath since it requires minimal parameters
@@ -165,14 +164,14 @@ namespace UMCP.Tests.Editor
                     
                     // Test direct execution via handler
                     object result = handler(new JObject());
-                    Assert.IsNotNull(result, "Direct handler execution should return a result");
+                    Assert.That(result, Is.Not.Null, "Direct handler execution should return a result");
                     Debug.Log($"Direct execution of {handlerName} result: {JsonConvert.SerializeObject(result)}");
                 }
             }
 
             // Test non-existent handler
             var nonExistentHandler = CommandRegistry.GetHandler("NonExistentHandler");
-            Assert.IsNull(nonExistentHandler, "Non-existent handler should return null");
+            Assert.That(nonExistentHandler, Is.Null, "Non-existent handler should return null");
         }
 
         private IEnumerator VerifyCommandExecutionViaUMCPBridge(Command command, System.Action<JObject> _onResult)
@@ -212,9 +211,9 @@ namespace UMCP.Tests.Editor
                     JObject response = JObject.Parse(responseJson);
 
                     // Verify response structure
-                    Assert.IsNotNull(response["status"], "Response should contain a 'status' field");
-                    Assert.AreEqual("success", response["status"].ToString(), "Expected status to be 'success'");
-                    Assert.IsNotNull(response["result"], "Response should contain a 'result' field");
+                    Assert.That(response["status"], Is.Not.Null, "Response should contain a 'status' field");
+                    Assert.That(response["status"].ToString(), Is.EqualTo("success"), "Expected status to be 'success'");
+                    Assert.That(response["result"], Is.Not.Null, "Response should contain a 'result' field");
 
                     // Log the response for debugging
                     Debug.Log($"Command {command.type} response: {responseJson}");

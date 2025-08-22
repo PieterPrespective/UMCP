@@ -31,7 +31,7 @@ namespace UMCP.Tests.Editor
             capturedContext = EditorStateHelper.CurrentContext;
             
             // If we're running this test, we should be in Testing context
-            Assert.AreEqual(EditorStateHelper.Context.Testing, capturedContext.Value, 
+            Assert.That(capturedContext.Value, Is.EqualTo(EditorStateHelper.Context.Testing), 
                 "EditorStateHelper should show Testing context while tests are running");
             
             // Mark that we successfully detected the Testing context
@@ -46,7 +46,7 @@ namespace UMCP.Tests.Editor
         {
             // Check initial state
             var initialContext = EditorStateHelper.CurrentContext;
-            Assert.AreEqual(EditorStateHelper.Context.Testing, initialContext, 
+            Assert.That(initialContext, Is.EqualTo(EditorStateHelper.Context.Testing), 
                 "Initial context should be Testing");
 
             // Wait a frame
@@ -54,7 +54,7 @@ namespace UMCP.Tests.Editor
 
             // Check again after a frame
             var afterFrameContext = EditorStateHelper.CurrentContext;
-            Assert.AreEqual(EditorStateHelper.Context.Testing, afterFrameContext, 
+            Assert.That(afterFrameContext, Is.EqualTo(EditorStateHelper.Context.Testing), 
                 "Context should still be Testing after waiting a frame");
 
             // Subscribe to state changes to monitor if it changes during test
@@ -76,12 +76,12 @@ namespace UMCP.Tests.Editor
             EditorStateHelper.OnContextChanged -= OnContextChanged;
 
             // The context should not have changed during the test
-            Assert.IsFalse(contextChangedDuringTest, 
+            Assert.That(contextChangedDuringTest, Is.False, 
                 $"Context should not change during test execution. Changed to: {newContext}");
 
             // Final check
             var finalContext = EditorStateHelper.CurrentContext;
-            Assert.AreEqual(EditorStateHelper.Context.Testing, finalContext, 
+            Assert.That(finalContext, Is.EqualTo(EditorStateHelper.Context.Testing), 
                 "Final context should still be Testing");
         }
 
@@ -92,7 +92,7 @@ namespace UMCP.Tests.Editor
         public void TestIsEditorResponsiveDuringTesting()
         {
             // During Testing context, the editor should be considered responsive
-            Assert.IsTrue(!EditorStateHelper.IsEditorResponsive,
+            Assert.That(!EditorStateHelper.IsEditorResponsive, Is.True,
                 "Editor should be considered NOT responsive during Testing context");
         }
 
@@ -109,13 +109,13 @@ namespace UMCP.Tests.Editor
             if (currentRunmode != EditorStateHelper.Runmode.PlayMode)
             {
                 // In EditMode tests, we can modify files even during Testing context
-                Assert.IsTrue(EditorStateHelper.CanModifyProjectFiles,
+                Assert.That(EditorStateHelper.CanModifyProjectFiles, Is.True,
                     "Should be able to modify project files during EditMode tests");
             }
             else
             {
                 // In PlayMode tests, we cannot modify files
-                Assert.IsFalse(EditorStateHelper.CanModifyProjectFiles,
+                Assert.That(EditorStateHelper.CanModifyProjectFiles, Is.False,
                     "Should not be able to modify project files during PlayMode tests");
             }
         }
@@ -129,7 +129,7 @@ namespace UMCP.Tests.Editor
             var stateDescription = EditorStateHelper.GetStateDescription();
             
             // The description should mention Testing context
-            Assert.IsTrue(stateDescription.Contains("Testing"), 
+            Assert.That(stateDescription.Contains("Testing"), Is.True, 
                 $"State description should include 'Testing' context. Actual: {stateDescription}");
         }
     }

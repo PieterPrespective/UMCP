@@ -115,7 +115,6 @@ namespace UMCP.Editor
             {
                 stateSemaphore.Release();
             }
-
             Debug.Log("UMCPBridge stopped.");
         }
 
@@ -238,7 +237,16 @@ namespace UMCP.Editor
                         }
                         catch (Exception ex)
                         {
-                            Debug.LogError($"Client handler error: {ex.Message}");
+                            if(ex.Message.Contains("Unable to read data from the transport connection: An existing connection was forcibly closed by the remote host."))
+                                {
+                                Debug.LogWarning($"[UMCPBridge] TCP bridge interrupted (probably due to a domain reload): {ex.Message}");
+                            }
+                            else
+                            {
+                                Debug.LogError($"Client handler error: {ex.Message}");
+                            }
+
+                                
                             break;
                         }
                     }
@@ -422,7 +430,6 @@ namespace UMCP.Editor
                 {
                     // Maps the command type (tool name) to the corresponding handler's static HandleCommand method
                     // Assumes each handler class has a static method named 'HandleCommand' that takes JObject parameters
-                    "manage_script" => ManageScript.HandleCommand(paramsObject),
                     "manage_scene" => ManageScene.HandleCommand(paramsObject),
                     "manage_editor" => ManageEditor.HandleCommand(paramsObject),
                     "manage_gameobject" => ManageGameObject.HandleCommand(paramsObject),
@@ -436,6 +443,7 @@ namespace UMCP.Editor
                     "request_step_logs" => RequestStepLogs.HandleCommand(paramsObject),
                     "get_tests" => GetTests.HandleCommand(paramsObject),
                     "run_tests" => RunTests.HandleCommand(paramsObject),
+                    "HandleManageIntegrationTests" => ManageIntegrationTests.HandleCommand(paramsObject),
                     _ => throw new ArgumentException($"Unknown or unsupported command type: {command.type}")
                 };
 
@@ -547,7 +555,7 @@ namespace UMCP.Editor
                         {
                             var stream = client.GetStream();
                             await stream.WriteAsync(stateBytes, 0, stateBytes.Length);
-                            Debug.Log($"State update sent to {client.Client.RemoteEndPoint}");
+                            //Debug.Log($"State update sent to {client.Client.RemoteEndPoint}");
                         }
                         else
                         {

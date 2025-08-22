@@ -111,7 +111,8 @@ public class ManageTestToolTests : IntegrationTestBase
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "get_unity_state"),
             It.IsAny<JObject>(),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false) // No logging for this command
         )).ReturnsAsync(unityStateResponse);
         
         yield return null;
@@ -138,7 +139,8 @@ public class ManageTestToolTests : IntegrationTestBase
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "force_update_editor"),
             It.IsAny<JObject>(),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(forceUpdateResponse);
         
         Task<object> forceUpdateTask = _forceUpdateTool.ForceUpdateEditor();
@@ -184,7 +186,8 @@ public class ManageTestToolTests : IntegrationTestBase
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "get_tests"),
             It.Is<JObject>(j => j["TestMode"].ToString() == "All"),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(allTestsResponse);
         
         Task<object> getAllTask = _getTestsTool.GetTests("All");
@@ -208,7 +211,8 @@ public class ManageTestToolTests : IntegrationTestBase
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "get_tests"),
             It.Is<JObject>(j => j["TestMode"].ToString() == "EditMode"),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(editModeResponse);
         
         Task<object> getEditModeTask = _getTestsTool.GetTests("EditMode");
@@ -230,7 +234,8 @@ public class ManageTestToolTests : IntegrationTestBase
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "get_tests"),
             It.Is<JObject>(j => j["TestMode"].ToString() == "PlayMode"),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(playModeResponse);
         
         Task<object> getPlayModeTask = _getTestsTool.GetTests("PlayMode");
@@ -254,7 +259,8 @@ public class ManageTestToolTests : IntegrationTestBase
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "get_tests"),
             It.Is<JObject>(j => j["Filter"].ToString() == "SimpleEditMode"),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(filteredResponse);
         
         Task<object> getFilteredTask = _getTestsTool.GetTests("All", "SimpleEditMode");
@@ -282,14 +288,16 @@ public class ManageTestToolTests : IntegrationTestBase
                 j["Filter"] is JArray && 
                 ((JArray)j["Filter"]).Count == 1 &&
                 j["Filter"][0].ToString() == TestAddition),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(CreateRunTestsInitialResponse());
         
         // Setup console response sequence
         var sequence = _mockUnityConnection.SetupSequence(m => m.SendCommandAsync(
             It.Is<string>(s => s == "read_console"),
             It.IsAny<JObject>(),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         ));
         
         // First poll - test still running
@@ -314,14 +322,16 @@ public class ManageTestToolTests : IntegrationTestBase
             It.Is<JObject>(j => 
                 j["OutputTestResults"].Value<bool>() == false &&
                 j["OutputLogData"].Value<bool>() == false),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(CreateRunTestsInitialResponse());
         
         // Setup console response for no output test
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "read_console"),
             It.IsAny<JObject>(),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(CreateConsoleResponse(true, new[] { (TestAddition, true) }, true));
         
         Task<object> runAdditionNoOutputTask = _runTestsTool.RunTests("EditMode", new[] { TestAddition }, false, false);
@@ -349,14 +359,16 @@ public class ManageTestToolTests : IntegrationTestBase
                 j["Filter"] is JArray && 
                 ((JArray)j["Filter"]).Count == 1 &&
                 j["Filter"][0].ToString() == TestFaulty),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(CreateRunTestsInitialResponse());
         
         // Setup console response for failed test
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "read_console"),
             It.IsAny<JObject>(),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(CreateConsoleResponse(true, new[] { (TestFaulty, false) }, false));
         
         Task<object> runFaultyTask = _runTestsTool.RunTests("EditMode", new[] { TestFaulty }, true, true);
@@ -387,14 +399,16 @@ public class ManageTestToolTests : IntegrationTestBase
                 j["TestMode"].ToString() == "EditMode" &&
                 j["Filter"] is JArray && 
                 ((JArray)j["Filter"]).Count == 0),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(CreateRunTestsInitialResponse());
         
         // Setup console response for all tests
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
             It.Is<string>(s => s == "read_console"),
             It.IsAny<JObject>(),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+            It.Is<bool>(b => b == false)
         )).ReturnsAsync(CreateConsoleResponse(true, new[]
         {
             (TestAddition, true),

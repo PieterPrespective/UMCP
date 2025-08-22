@@ -184,6 +184,8 @@ namespace UMCP.Editor.Helpers
             }
 
             // Detect Context
+            //Debug.Log("[DetectCurrentState] Current Runmode: " + CurrentRunmode + " vs " + TestRunnerAPIForwarderUtility.IsTestRunning() + StateStorage.isTestRunning);
+
             if (TestRunnerAPIForwarderUtility.IsTestRunning() || StateStorage.isTestRunning)
             {
                 CurrentContext = Context.Testing;

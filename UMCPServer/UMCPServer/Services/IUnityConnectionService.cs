@@ -22,13 +22,14 @@ public interface IUnityConnectionService : IDisposable
     /// Disconnects from Unity
     /// </summary>
     void Disconnect();
-    
+
     /// <summary>
     /// Sends a command to Unity asynchronously
     /// </summary>
     /// <param name="commandType">The type of command to send</param>
     /// <param name="parameters">Optional parameters for the command</param>
     /// <param name="cancellationToken">Cancellation token</param>
+    /// <param name="_logResult">optional - whether to log the result upon reception</param>
     /// <returns>Response from Unity</returns>
-    Task<JObject?> SendCommandAsync(string commandType, JObject? parameters, CancellationToken cancellationToken = default);
+    Task<JObject?> SendCommandAsync(string commandType, JObject? parameters, CancellationToken cancellationToken = default, bool _logResult = false);
 }

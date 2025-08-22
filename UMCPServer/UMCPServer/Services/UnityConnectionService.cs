@@ -165,7 +165,7 @@ public class UnityConnectionService : IUnityConnectionService
         }
     }
     
-    public async Task<JObject?> SendCommandAsync(string commandType, JObject? parameters, CancellationToken cancellationToken = default)
+    public async Task<JObject?> SendCommandAsync(string commandType, JObject? parameters, CancellationToken cancellationToken = default, bool _logResult = false)
     {
         if (!IsConnected && !await ConnectAsync())
         {
@@ -201,16 +201,20 @@ public class UnityConnectionService : IUnityConnectionService
             // Read response
             byte[] responseData = await ReceiveFullResponseAsync(cancellationToken);
             string responseJson = Encoding.UTF8.GetString(responseData);
-            
+
+            if(_logResult)
+            {
+                _logger.LogInformation("Received response: {ResponseSize} bytes = '{ResponseMsg}'", responseJson.Length, responseJson);
+            }
+
             var response = JsonConvert.DeserializeObject<UnityResponse>(responseJson);
-            
             if (response?.Status == "error")
             {
                 string errorMessage = response.Error ?? response.Message ?? "Unknown Unity error";
                 _logger.LogError("Unity error: {ErrorMessage}", errorMessage);
                 throw new Exception(errorMessage);
             }
-            
+
             return response?.Result ?? new JObject();
         }
         catch (Exception ex)

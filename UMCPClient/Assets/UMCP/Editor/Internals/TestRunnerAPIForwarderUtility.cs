@@ -1,7 +1,8 @@
-using UnityEngine;
+using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using UnityEngine;
 
 namespace UnityEditor.TestTools.TestRunner.Api
 {
@@ -39,6 +40,19 @@ namespace UnityEditor.TestTools.TestRunner.Api
         private static TestRunnerApi testApi;
         private static TestCallbackForwarder currentCallbacks;
         private static bool isTestRunning = false;
+
+
+        /// <summary>
+        /// Returns whether the Unity TestRunner is currently Active
+        /// </summary>
+        private static bool IsRunningTestInUnityTestRunner
+        {
+            get
+            {
+                return TestContext.CurrentTestExecutionContext != null;
+            }
+        }
+
 
         /// <summary>
         /// Creates and returns a TestRunnerApi instance
@@ -197,7 +211,7 @@ namespace UnityEditor.TestTools.TestRunner.Api
         /// </summary>
         public static bool IsTestRunning()
         {
-            return isTestRunning;
+            return isTestRunning || IsRunningTestInUnityTestRunner;
         }
 
         /// <summary>
@@ -221,12 +235,16 @@ namespace UnityEditor.TestTools.TestRunner.Api
 
             public void RunStarted(ITestAdaptor testsToRun)
             {
+                Debug.Log("[TestRunnerAPIForwarder] Test run started");
+
                 isTestRunning = true;
                 OnTestRunStateChanged?.Invoke(true);
             }
 
             public void RunFinished(ITestResultAdaptor result)
             {
+                Debug.Log("[TestRunnerAPIForwarder] Test run finished");
+
                 isTestRunning = false;
                 OnTestRunStateChanged?.Invoke(false);
                 lastTestRunResult = result;

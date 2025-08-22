@@ -37,7 +37,8 @@ namespace UMCPServer.Tests.Tools
             _mockUnityConnection.Setup(x => x.SendCommandAsync(
                     "read_console",
                     It.IsAny<JObject>(),
-                    default))
+                    default,
+                It.Is<bool>(b => b == false)))
                 .ReturnsAsync(new JObject
                 {
                     ["status"] = "success",
@@ -74,7 +75,8 @@ namespace UMCPServer.Tests.Tools
             _mockUnityConnection.Setup(x => x.SendCommandAsync(
                     "read_console",
                     It.IsAny<JObject>(),
-                    default))
+                    default,
+                It.Is<bool>(b => b == false)))
                 .ReturnsAsync(new JObject
                 {
                     ["status"] = "success",
@@ -101,7 +103,8 @@ namespace UMCPServer.Tests.Tools
             _mockUnityConnection.Setup(x => x.SendCommandAsync(
                     "mark_start_of_new_step",
                     It.IsAny<JObject>(),
-                    default))
+                    default,
+                It.Is<bool>(b => b == false)))
                 .ReturnsAsync(new JObject
                 {
                     ["status"] = "success",
@@ -152,7 +155,7 @@ namespace UMCPServer.Tests.Tools
             _mockUnityConnection.Setup(x => x.SendCommandAsync(
                     "request_step_logs",
                     It.IsAny<JObject>(),
-                    default))
+                    default, It.Is<bool>(b => b == false)))
                 .ReturnsAsync(new JObject
                 {
                     ["status"] = "success",
@@ -192,7 +195,7 @@ namespace UMCPServer.Tests.Tools
             _mockUnityConnection.Setup(x => x.SendCommandAsync(
                     "request_step_logs",
                     It.IsAny<JObject>(),
-                    default))
+                    default, It.Is<bool>(b => b == false)))
                 .ReturnsAsync(new JObject
                 {
                     ["status"] = "error",

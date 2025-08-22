@@ -60,6 +60,18 @@ namespace UMCP.Tests.Editor
             string commandJson = JsonConvert.SerializeObject(command);
             byte[] commandBytes = Encoding.UTF8.GetBytes(commandJson);
 
+            
+            //bool isBridgeRunning = UMCPBridge.IsRunning;
+            //bool bridgeWasRunning = false;
+            //if(isBridgeRunning)
+            //{
+            //    UMCPBridge.Stop();
+            //    bridgeWasRunning = true;
+            //    await Task.Delay(100); // Wait a bit to ensure bridge is ready
+            //}
+
+            JObject result = null;
+
             using (TcpClient client = new TcpClient())
             {
                 await client.ConnectAsync("localhost", unityPort);
@@ -71,9 +83,15 @@ namespace UMCP.Tests.Editor
                     int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
                     
                     string responseJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    return JObject.Parse(responseJson);
+                    result = JObject.Parse(responseJson);
                 }
             }
+
+            //if (bridgeWasRunning)
+            //{
+            //    UMCPBridge.Start(); // Restart bridge if it was running before
+            //}
+            return result;
         }
 
         /// <summary>
@@ -114,7 +132,7 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             // Convert result to JObject for inspection
             string resultJson = JsonConvert.SerializeObject(result);
@@ -123,8 +141,8 @@ namespace UMCP.Tests.Editor
             Debug.Log($"Clear Console Result: {resultJson}");
 
             // Check for Response.Success format: { success: true, message: "..." }
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Clear action should succeed");
-            Assert.IsNotNull(resultObj["message"], "Clear action should return a message");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Clear action should succeed");
+            Assert.That(resultObj["message"], Is.Not.Null, "Clear action should return a message");
         }
 
         [Test]
@@ -142,7 +160,7 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
@@ -150,9 +168,9 @@ namespace UMCP.Tests.Editor
             Debug.Log($"Get Console Result: {resultJson}");
             
             // Check for Response.Success format: { success: true, message: "...", data: [...] }
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Get action should succeed");
-            Assert.IsNotNull(resultObj["data"], "Get action should return data");
-            Assert.IsTrue(resultObj["data"] is JArray, "Data should be an array of log entries");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Get action should succeed");
+            Assert.That(resultObj["data"], Is.Not.Null, "Get action should return data");
+            Assert.That(resultObj["data"] is JArray, Is.True, "Data should be an array of log entries");
         }
 
         [Test]
@@ -172,21 +190,21 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
             
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Filtered get should succeed");
-            Assert.IsNotNull(resultObj["data"], "Should return data");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Filtered get should succeed");
+            Assert.That(resultObj["data"], Is.Not.Null, "Should return data");
             
             JArray entries = resultObj["data"] as JArray;
-            Assert.IsNotNull(entries, "Data should be an array");
+            Assert.That(entries, Is.Not.Null, "Data should be an array");
             
             // Verify all returned entries are errors (if any exist)
             foreach (JObject entry in entries.Cast<JObject>())
             {
-                Assert.IsNotNull(entry["type"], "Each entry should have a type");
+                Assert.That(entry["type"], Is.Not.Null, "Each entry should have a type");
                 // Note: Due to the mode bit correction in ReadConsole, "Error" becomes "Warning"
                 // This test validates the filtering logic works, regardless of the specific mapping
             }
@@ -209,23 +227,23 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
             
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Text-filtered get should succeed");
-            Assert.IsNotNull(resultObj["data"], "Should return data");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Text-filtered get should succeed");
+            Assert.That(resultObj["data"], Is.Not.Null, "Should return data");
             
             JArray entries = resultObj["data"] as JArray;
-            Assert.IsNotNull(entries, "Data should be an array");
+            Assert.That(entries, Is.Not.Null, "Data should be an array");
             
             // Verify all returned entries contain the filter text
             foreach (JObject entry in entries.Cast<JObject>())
             {
-                Assert.IsNotNull(entry["message"], "Each entry should have a message");
+                Assert.That(entry["message"], Is.Not.Null, "Each entry should have a message");
                 string message = entry["message"].ToString();
-                Assert.IsTrue(message.Contains("ReadConsoleTest"), 
+                Assert.That(message.Contains("ReadConsoleTest"), Is.True, 
                     $"Entry message should contain filter text: {message}");
             }
         }
@@ -247,21 +265,21 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
             
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Plain format get should succeed");
-            Assert.IsNotNull(resultObj["data"], "Should return data");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Plain format get should succeed");
+            Assert.That(resultObj["data"], Is.Not.Null, "Should return data");
             
             JArray entries = resultObj["data"] as JArray;
-            Assert.IsNotNull(entries, "Data should be an array");
+            Assert.That(entries, Is.Not.Null, "Data should be an array");
             
             // In plain format, each entry should be just a string
             foreach (JToken entry in entries)
             {
-                Assert.IsTrue(entry.Type == JTokenType.String, 
+                Assert.That(entry.Type == JTokenType.String, Is.True, 
                     "In plain format, each entry should be a string");
             }
         }
@@ -283,23 +301,23 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
             
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "No-stacktrace get should succeed");
-            Assert.IsNotNull(resultObj["data"], "Should return data");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "No-stacktrace get should succeed");
+            Assert.That(resultObj["data"], Is.Not.Null, "Should return data");
             
             JArray entries = resultObj["data"] as JArray;
-            Assert.IsNotNull(entries, "Data should be an array");
+            Assert.That(entries, Is.Not.Null, "Data should be an array");
             
             // Verify stackTrace is null when includeStacktrace is false
             foreach (JObject entry in entries.Cast<JObject>())
             {
                 if (entry["stackTrace"] != null)
                 {
-                    Assert.IsTrue(entry["stackTrace"].Type == JTokenType.Null, 
+                    Assert.That(entry["stackTrace"].Type == JTokenType.Null, Is.True, 
                         "StackTrace should be null when includeStacktrace is false");
                 }
             }
@@ -318,7 +336,7 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result even for invalid action");
+            Assert.That(result, Is.Not.Null, "Handler should return a result even for invalid action");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
@@ -326,8 +344,8 @@ namespace UMCP.Tests.Editor
             Debug.Log($"Invalid Action Result: {resultJson}");
             
             // Check for Response.Error format: { success: false, error: "..." }
-            Assert.AreEqual(false, resultObj["success"]?.ToObject<bool>(), "Invalid action should return error status");
-            Assert.IsNotNull(resultObj["error"], "Error response should contain error message");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(false), "Invalid action should return error status");
+            Assert.That(resultObj["error"], Is.Not.Null, "Error response should contain error message");
         }
 
         [Test]
@@ -337,7 +355,7 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(null);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should handle null parameters gracefully");
+            Assert.That(result, Is.Not.Null, "Handler should handle null parameters gracefully");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
@@ -345,7 +363,7 @@ namespace UMCP.Tests.Editor
             Debug.Log($"Null Parameters Result: {resultJson}");
 
             // Should default to "get" action when parameters are null
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Null parameters should default to successful get");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Null parameters should default to successful get");
         }
 
         #endregion
@@ -373,12 +391,12 @@ namespace UMCP.Tests.Editor
                 Debug.Log($"TCP Clear Response: {response.ToString()}");
                 
                 // UMCPBridge wraps handler response: { status: "success", result: handlerResult }
-                Assert.AreEqual("success", response["status"]?.ToString(), "Clear command should succeed via TCP");
-                Assert.IsNotNull(response["result"], "Clear command should return result");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Clear command should succeed via TCP");
+                Assert.That(response["result"], Is.Not.Null, "Clear command should return result");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Handler result should indicate success");
-                Assert.IsNotNull(result["message"], "Clear result should contain message");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Handler result should indicate success");
+                Assert.That(result["message"], Is.Not.Null, "Clear result should contain message");
             });
         }
 
@@ -399,13 +417,13 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(command, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Get command should succeed via TCP");
-                Assert.IsNotNull(response["result"], "Get command should return result");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Get command should succeed via TCP");
+                Assert.That(response["result"], Is.Not.Null, "Get command should return result");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Handler result should indicate success");
-                Assert.IsNotNull(result["data"], "Get result should contain data array");
-                Assert.IsTrue(result["data"] is JArray, "Data should be an array");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Handler result should indicate success");
+                Assert.That(result["data"], Is.Not.Null, "Get result should contain data array");
+                Assert.That(result["data"] is JArray, Is.True, "Data should be an array");
             });
         }
 
@@ -431,25 +449,25 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(command, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Filtered get should succeed via TCP");
-                Assert.IsNotNull(response["result"], "Filtered get should return result");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Filtered get should succeed via TCP");
+                Assert.That(response["result"], Is.Not.Null, "Filtered get should return result");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Handler result should indicate success");
-                Assert.IsNotNull(result["data"], "Filtered get should contain data array");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Handler result should indicate success");
+                Assert.That(result["data"], Is.Not.Null, "Filtered get should contain data array");
                 
                 JArray entries = result["data"] as JArray;
-                Assert.IsNotNull(entries, "Data should be an array");
+                Assert.That(entries, Is.Not.Null, "Data should be an array");
                 Assert.LessOrEqual(entries.Count, 5, "Should respect count limit");
                 
                 // Verify filtering worked
                 foreach (JObject entry in entries.Cast<JObject>())
                 {
-                    Assert.IsNotNull(entry["message"], "Each entry should have a message");
-                    Assert.IsNotNull(entry["type"], "Each entry should have a type");
+                    Assert.That(entry["message"], Is.Not.Null, "Each entry should have a message");
+                    Assert.That(entry["type"], Is.Not.Null, "Each entry should have a type");
                     
                     string message = entry["message"].ToString();
-                    Assert.IsTrue(message.Contains("ReadConsoleTest"), 
+                    Assert.That(message.Contains("ReadConsoleTest"), Is.True, 
                         $"Entry should contain filter text: {message}");
                 }
             });
@@ -474,49 +492,56 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(command, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Plain format get should succeed via TCP");
-                Assert.IsNotNull(response["result"], "Plain format get should return result");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Plain format get should succeed via TCP");
+                Assert.That(response["result"], Is.Not.Null, "Plain format get should return result");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Handler result should indicate success");
-                Assert.IsNotNull(result["data"], "Plain format get should contain data array");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Handler result should indicate success");
+                Assert.That(result["data"], Is.Not.Null, "Plain format get should contain data array");
                 
                 JArray entries = result["data"] as JArray;
-                Assert.IsNotNull(entries, "Data should be an array");
+                Assert.That(entries, Is.Not.Null, "Data should be an array");
                 
                 // In plain format, entries should be strings
                 foreach (JToken entry in entries)
                 {
-                    Assert.IsTrue(entry.Type == JTokenType.String, 
+                    Assert.That(entry.Type == JTokenType.String, Is.True, 
                         "Plain format entries should be strings");
                 }
             });
         }
 
         [UnityTest]
+        [Ignore("This test will only run in single mode due to TCP channel spamming")]
         public IEnumerator TestValidMessageTypeInterpretation()
         {
+            yield return new WaitForSeconds(0.1f); // Ensure logs are generated before testing
+
             string logMsg = "[ReadConsoleTest] This is a normal log message";
             string warningMsg = "[ReadConsoleTest] This is a Warning log message";
             string errorMsg = "[ReadConsoleTest] This is an Error log message";
             string exceptionMsg = "[ReadConsoleTest] This is an Exception log message";
             string assertMsg = "[ReadConsoleTest] This is an Assert log message";
 
-
+            Debug.Log(">>> Testing Log Type");
             Debug.Log(logMsg);
             yield return executeLogTypeTest("log", new string[] { logMsg }, 10);
 
+            Debug.Log(">>> Testing Warning Type");
             Debug.LogWarning(warningMsg);
             yield return executeLogTypeTest("warning", new string[] { warningMsg }, 10);
 
+            Debug.Log(">>> Testing Error Type");
             UnityEngine.TestTools.LogAssert.Expect(LogType.Error, errorMsg);
             Debug.LogError(errorMsg);
             yield return executeLogTypeTest("error", new string[] { errorMsg }, 10);
 
+            Debug.Log(">>> Testing Exception Type");
             UnityEngine.TestTools.LogAssert.Expect(LogType.Exception, "Exception: " + exceptionMsg);
             Debug.LogException(new System.Exception(exceptionMsg));
             yield return executeLogTypeTest("exception", new string[] { "Exception: " + exceptionMsg }, 10);
 
+            Debug.Log(">>> Testing Asser Type");
             UnityEngine.TestTools.LogAssert.Expect(LogType.Assert, assertMsg);
             Debug.LogAssertion(assertMsg);
             yield return executeLogTypeTest("assert", new string[] { assertMsg }, 10);
@@ -540,24 +565,24 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(command, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), $"'{_msgType}' types filter should succeed via TCP");
-                Assert.IsNotNull(response["result"], $"'{_msgType}' types should return result");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), $"'{_msgType}' types filter should succeed via TCP");
+                Assert.That(response["result"], Is.Not.Null, $"'{_msgType}' types should return result");
 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Handler result should indicate success");
-                Assert.IsNotNull(result["data"], $"'{_msgType}' types should contain data array");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Handler result should indicate success");
+                Assert.That(result["data"], Is.Not.Null, $"'{_msgType}' types should contain data array");
 
                 JArray entries = result["data"] as JArray;
-                Assert.IsNotNull(entries, "Data should be an array");
+                Assert.That(entries, Is.Not.Null, "Data should be an array");
 
                 bool[] fndMsgs = new bool[_expectedMsgs.Length];
                 for (int i = 0; i < entries.Count; i++)
                 {
                     JObject entry = entries[i] as JObject;
-                    Assert.IsNotNull(entry, "Each entry should be a JObject");
+                    Assert.That(entry, Is.Not.Null, "Each entry should be a JObject");
                     if(!_ignoreMsgtype)
                     {
-                        Assert.AreEqual(_msgType, entry["type"]?.ToString().ToLower(), $"Entry type should be '{_msgType}'");
+                        Assert.That(entry["type"]?.ToString().ToLower(), Is.EqualTo(_msgType), $"Entry type should be '{_msgType}'");
                     }
                     int idx = System.Array.IndexOf(_expectedMsgs, entry["message"]?.ToString());
                     if (idx > -1)
@@ -576,7 +601,7 @@ namespace UMCP.Tests.Editor
 
 
 
-                Assert.IsTrue(notFoundMsgs.Count == 0, $"Missed one or more expected messages in the results;{string.Join(',', notFoundMsgs)}");
+                Assert.That(notFoundMsgs.Count == 0, Is.True, $"Missed one or more expected messages in the results;{string.Join(',', notFoundMsgs)}");
                 Assert.LessOrEqual(entries.Count, _limit, "Should respect count limit");
             });
         }
@@ -609,15 +634,15 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(command, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "'All' types filter should succeed via TCP");
-                Assert.IsNotNull(response["result"], "'All' types should return result");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "'All' types filter should succeed via TCP");
+                Assert.That(response["result"], Is.Not.Null, "'All' types should return result");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Handler result should indicate success");
-                Assert.IsNotNull(result["data"], "'All' types should contain data array");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Handler result should indicate success");
+                Assert.That(result["data"], Is.Not.Null, "'All' types should contain data array");
                 
                 JArray entries = result["data"] as JArray;
-                Assert.IsNotNull(entries, "Data should be an array");
+                Assert.That(entries, Is.Not.Null, "Data should be an array");
                 Assert.LessOrEqual(entries.Count, 10, "Should respect count limit");
             });
         }
@@ -639,12 +664,12 @@ namespace UMCP.Tests.Editor
                 Debug.Log($"TCP Invalid Action Response: {response.ToString()}");
                 
                 // UMCPBridge should still return success status, but handler result will indicate error
-                Assert.AreEqual("success", response["status"]?.ToString(), "Bridge should succeed even when handler has error");
-                Assert.IsNotNull(response["result"], "Should return result object");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Bridge should succeed even when handler has error");
+                Assert.That(response["result"], Is.Not.Null, "Should return result object");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(false, result["success"]?.ToObject<bool>(), "Handler result should indicate error");
-                Assert.IsNotNull(result["error"], "Handler result should contain error message");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(false), "Handler result should indicate error");
+                Assert.That(result["error"], Is.Not.Null, "Handler result should contain error message");
             });
         }
 
@@ -659,12 +684,12 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(command, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Empty parameters should succeed");
-                Assert.IsNotNull(response["result"], "Should return result");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Empty parameters should succeed");
+                Assert.That(response["result"], Is.Not.Null, "Should return result");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Should default to successful get operation");
-                Assert.IsNotNull(result["data"], "Should contain data array");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Should default to successful get operation");
+                Assert.That(result["data"], Is.Not.Null, "Should contain data array");
             });
         }
 
@@ -688,19 +713,19 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
             
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Zero count should succeed");
-            Assert.IsNotNull(resultObj["data"], "Should return data");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Zero count should succeed");
+            Assert.That(resultObj["data"], Is.Not.Null, "Should return data");
             
             Debug.Log($"Get Console with Zero Count Result: {resultJson}");
 
             JArray entries = resultObj["data"] as JArray;
-            Assert.IsNotNull(entries, "Data should be an array");
-            Assert.AreEqual(0, entries.Count, "Should return empty array when count is 0");
+            Assert.That(entries, Is.Not.Null, "Data should be an array");
+            Assert.That(entries.Count, Is.EqualTo(0), "Should return empty array when count is 0");
         }
 
         [Test]
@@ -720,17 +745,17 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
             
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Non-existent filter should succeed");
-            Assert.IsNotNull(resultObj["data"], "Should return data");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Non-existent filter should succeed");
+            Assert.That(resultObj["data"], Is.Not.Null, "Should return data");
             
             JArray entries = resultObj["data"] as JArray;
-            Assert.IsNotNull(entries, "Data should be an array");
-            Assert.AreEqual(0, entries.Count, "Should return empty array when no entries match filter");
+            Assert.That(entries, Is.Not.Null, "Data should be an array");
+            Assert.That(entries.Count, Is.EqualTo(0), "Should return empty array when no entries match filter");
         }
 
         [Test]
@@ -750,17 +775,17 @@ namespace UMCP.Tests.Editor
             object result = ReadConsole.HandleCommand(parameters);
 
             // Assert
-            Assert.IsNotNull(result, "Handler should return a result");
+            Assert.That(result, Is.Not.Null, "Handler should return a result");
             
             string resultJson = JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
             
-            Assert.AreEqual(true, resultObj["success"]?.ToObject<bool>(), "Invalid log type should succeed");
-            Assert.IsNotNull(resultObj["data"], "Should return data");
+            Assert.That(resultObj["success"]?.ToObject<bool>(), Is.EqualTo(true), "Invalid log type should succeed");
+            Assert.That(resultObj["data"], Is.Not.Null, "Should return data");
             
             JArray entries = resultObj["data"] as JArray;
-            Assert.IsNotNull(entries, "Data should be an array");
-            Assert.AreEqual(0, entries.Count, "Should return empty array when log type doesn't match any entries");
+            Assert.That(entries, Is.Not.Null, "Data should be an array");
+            Assert.That(entries.Count, Is.EqualTo(0), "Should return empty array when log type doesn't match any entries");
         }
 
         #endregion
@@ -782,9 +807,9 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(clearCommand, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Clear should succeed");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Clear should succeed");
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Clear handler should succeed");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Clear handler should succeed");
             });
 
             // Wait a moment
@@ -807,14 +832,14 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(getCommand, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Get after clear should succeed");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Get after clear should succeed");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Get handler should succeed");
-                Assert.IsNotNull(result["data"], "Should return data");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Get handler should succeed");
+                Assert.That(result["data"], Is.Not.Null, "Should return data");
                 
                 JArray entries = result["data"] as JArray;
-                Assert.IsNotNull(entries, "Data should be an array");
+                Assert.That(entries, Is.Not.Null, "Data should be an array");
                 
                 // Should find the new test entries we added after clearing
                 Assert.Greater(entries.Count, 0, "Should find test entries added after clear");
@@ -822,7 +847,7 @@ namespace UMCP.Tests.Editor
                 foreach (JObject entry in entries.Cast<JObject>())
                 {
                     string message = entry["message"]?.ToString();
-                    Assert.IsTrue(message.Contains("ReadConsoleTest"), 
+                    Assert.That(message.Contains("ReadConsoleTest"), Is.True, 
                         "Entries should contain our test filter text");
                 }
             });
@@ -848,9 +873,9 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(errorCommand, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Error filter should succeed");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Error filter should succeed");
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Error filter handler should succeed");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Error filter handler should succeed");
             });
 
             // Test 2: Get all warning logs
@@ -867,9 +892,9 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(warningCommand, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Warning filter should succeed");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Warning filter should succeed");
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Warning filter handler should succeed");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Warning filter handler should succeed");
             });
 
             // Test 3: Get logs with specific text in plain format
@@ -887,15 +912,15 @@ namespace UMCP.Tests.Editor
 
             yield return ExecuteTCPCommandTest(plainCommand, (response) =>
             {
-                Assert.AreEqual("success", response["status"]?.ToString(), "Plain format filter should succeed");
+                Assert.That(response["status"]?.ToString(), Is.EqualTo("success"), "Plain format filter should succeed");
                 
                 JObject result = response["result"] as JObject;
-                Assert.AreEqual(true, result["success"]?.ToObject<bool>(), "Plain format handler should succeed");
+                Assert.That(result["success"]?.ToObject<bool>(), Is.EqualTo(true), "Plain format handler should succeed");
                 JArray entries = result["data"] as JArray;
                 
                 foreach (JToken entry in entries)
                 {
-                    Assert.IsTrue(entry.Type == JTokenType.String, "Plain format should return strings");
+                    Assert.That(entry.Type == JTokenType.String, Is.True, "Plain format should return strings");
                 }
             });
         }

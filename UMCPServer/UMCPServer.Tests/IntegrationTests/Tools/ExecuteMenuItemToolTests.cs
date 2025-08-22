@@ -83,7 +83,8 @@ public class ExecuteMenuItemToolTests : IntegrationTestBase
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
                 It.Is<string>(s => s == "execute_menu_item"),
                 It.IsAny<JObject>(),
-                It.IsAny<CancellationToken>()
+                It.IsAny<CancellationToken>(),
+                It.Is<bool>(b => b == false)
             ))
             .ReturnsAsync(mockResult);
         yield return null;
@@ -114,7 +115,8 @@ public class ExecuteMenuItemToolTests : IntegrationTestBase
                 obj["action"].ToString() == "execute" &&
                 obj["menu_path"].ToString() == "GameObject/Create Empty"
             ),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+                It.Is<bool>(b => b == false)
         ), Times.Once);
         yield return null;
         
@@ -143,7 +145,8 @@ public class ExecuteMenuItemToolTests : IntegrationTestBase
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
                 It.Is<string>(s => s == "execute_menu_item"),
                 It.IsAny<JObject>(),
-                It.IsAny<CancellationToken>()
+                It.IsAny<CancellationToken>(),
+                It.Is<bool>(b => b == false)
             ))
             .ReturnsAsync(mockResult);
         yield return null;
@@ -249,7 +252,8 @@ public class ExecuteMenuItemToolTests : IntegrationTestBase
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
                 It.Is<string>(s => s == "execute_menu_item"),
                 It.IsAny<JObject>(),
-                It.IsAny<CancellationToken>()
+                It.IsAny<CancellationToken>(),
+                It.Is<bool>(b => b == false)
             ))
             .ReturnsAsync(mockResult)
             .Callback(() =>

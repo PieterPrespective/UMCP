@@ -76,7 +76,9 @@ public class GetProjectPathToolTests : IntegrationTestBase
         _mockUnityConnection.Setup(m => m.SendCommandAsync(
                 It.Is<string>(s => s == "get_project_path"),
                 It.IsAny<JObject>(),
-                It.IsAny<CancellationToken>()
+                It.IsAny<CancellationToken>(),
+                It.Is<bool>(b => b == false)
+
             ))
             .ReturnsAsync(mockResult);
         yield return null;
@@ -106,7 +108,8 @@ public class GetProjectPathToolTests : IntegrationTestBase
         _mockUnityConnection.Verify(m => m.SendCommandAsync(
             It.Is<string>(s => s == "get_project_path"),
             It.IsAny<JObject>(),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+                It.Is<bool>(b => b == false)
         ), Times.Once, "SendCommandAsync should be called once with 'get_project_path' command");
         yield return null;
         
@@ -145,7 +148,8 @@ public class GetProjectPathToolTests : IntegrationTestBase
         _mockUnityConnection.Verify(m => m.SendCommandAsync(
             It.IsAny<string>(),
             It.IsAny<JObject>(),
-            It.IsAny<CancellationToken>()
+            It.IsAny<CancellationToken>(),
+                It.Is<bool>(b => b == false)
         ), Times.Never, "SendCommandAsync should not be called when not connected");
         yield return null;
         
