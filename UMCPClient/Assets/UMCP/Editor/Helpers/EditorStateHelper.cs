@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditor.Compilation;
 using UnityEditor.TestTools.TestRunner.Api;
+using UMCP.Editor.Tools;
 
 namespace UMCP.Editor.Helpers
 {
@@ -133,6 +134,15 @@ namespace UMCP.Editor.Helpers
         #region Initialization
         static EditorStateHelper()
         {
+            Debug.Log($"[EditorStateHelper] (Re-)Initializing Editor State Helper in context {CurrentContext}");
+            //if (CurrentContext == Context.Testing)
+            //{
+            //    // If we're in testing mode (e.g. running tests), register test callbacks - they'll be lost after a domain reload
+            //    //TODO : localize state storage to the test runner context
+            //    TestRunnerAPIForwarderUtility.RegisterCallbacks(RunTestsUtility.OnTestFinished, RunTestsUtility.OnRunFinished);
+            //}
+
+
             // Subscribe to Unity Editor events
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
             EditorApplication.update += OnEditorUpdate;
@@ -185,11 +195,17 @@ namespace UMCP.Editor.Helpers
 
             // Detect Context
             //Debug.Log("[DetectCurrentState] Current Runmode: " + CurrentRunmode + " vs " + TestRunnerAPIForwarderUtility.IsTestRunning() + StateStorage.isTestRunning);
-
-            if (TestRunnerAPIForwarderUtility.IsTestRunning() || StateStorage.isTestRunning)
+            //CASE : testrunner is running but state storage doesn't know about it (manual test instigated by user)
+            if (TestRunnerAPIForwarderUtility.IsTestRunning())
             {
                 CurrentContext = Context.Testing;
             }
+            //else if (StateStorage.isTestRunning)
+            //{
+            //    CurrentContext = (TestRunnerAPIForwarderUtility.IsTestRunning())
+            //}
+
+
             else if (EditorApplication.isCompiling)
             {
                 CurrentContext = Context.Compiling;

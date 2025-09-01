@@ -23,7 +23,7 @@ public class GetUnityClientStateTool
     }
     
     [McpServerTool]
-    [Description("Returns the current state of the connected Unity3D Client including runmode (EditMode_Scene, EditMode_Prefab, PlayMode) and context (Running, Switching, Compiling, UpdatingAssets).")]
+    [Description("Returns the current state of the connected Unity3D Client including runmode (EditMode_Scene, EditMode_Prefab, PlayMode) and context (Running, Switching, Testing, Compiling, UpdatingAssets).")]
     public async Task<object> GetUnityClientState(CancellationToken cancellationToken = default)
     {
         try

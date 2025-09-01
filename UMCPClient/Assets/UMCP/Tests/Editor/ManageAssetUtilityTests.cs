@@ -1,10 +1,14 @@
-using NUnit.Framework;
-using UnityEngine;
-using UnityEditor;
 using Newtonsoft.Json.Linq;
+using NUnit.Framework;
+using System.Collections.Generic;
 using System.IO;
-using UMCP.Editor.Tools.Utilities;
+using UMCP.Editor;
 using UMCP.Editor.Helpers;
+using UMCP.Editor.Tools;
+using UMCP.Editor.Tools.Utilities;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Timeline;
 
 namespace UMCP.Tests.Editor
 {
@@ -158,6 +162,91 @@ namespace UMCP.Tests.Editor
         #endregion
 
         #region Action Validation Tests
+
+
+        [Test]
+        public void TestReadPrefabContent()
+        {
+            string testPrefabPath = "Assets/UMCP/Tests/Playmode/Resources/UMCPTestPrefab.prefab";
+            GameObject testPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(testPrefabPath);
+            Assert.That(testPrefab, Is.Not.Null, testPrefabPath);
+
+            EnrichedConversionContext conversionContext = new EnrichedConversionContext() { gameObjectSerializationMode = EnrichedConversionContext.GameObjectSerializationMode.AllComponents };
+            object assetData = ManageAsset.GetAssetData(testPrefabPath, false, conversionContext);
+            Assert.That(assetData, Is.Not.Null, "Asset data should not be null");
+
+            JObject assetJson = JObject.FromObject(assetData);
+            Debug.Log($"Prefab Asset Data: {assetJson.ToString()}");
+        }
+
+        [Test]
+        public void TestReadMaterialContent()
+        {
+            string testMaterialPath = "Assets/UMCP/Tests/Playmode/Resources/UMCPTestMaterial.mat";
+            Material testMaterial = AssetDatabase.LoadAssetAtPath<Material>(testMaterialPath);
+            Assert.That(testMaterial, Is.Not.Null, testMaterialPath);
+
+            EnrichedConversionContext conversionContext = new EnrichedConversionContext() { gameObjectSerializationMode = EnrichedConversionContext.GameObjectSerializationMode.AllComponents };
+            object assetData = ManageAsset.GetAssetData(testMaterialPath, false, conversionContext);
+            Assert.That(assetData, Is.Not.Null, "Asset data should not be null");
+
+            JObject assetJson = JObject.FromObject(assetData);
+            Debug.Log($"Material Asset Data: {assetJson.ToString()}");
+        }
+
+        [Test]
+        public void TestReadScriptableObjectContent()
+        {
+            string testSOPath = "Assets/UMCP/Tests/Playmode/Resources/UMCPTestScriptableObject.asset";
+            ScriptableObject testSO = AssetDatabase.LoadAssetAtPath<ScriptableObject>(testSOPath);
+            Assert.That(testSO, Is.Not.Null, testSOPath);
+            EnrichedConversionContext conversionContext = new EnrichedConversionContext() { gameObjectSerializationMode = EnrichedConversionContext.GameObjectSerializationMode.AllComponents };
+            object assetData = ManageAsset.GetAssetData(testSOPath, false, conversionContext);
+            Assert.That(assetData, Is.Not.Null, "Asset data should not be null");
+
+            JObject assetJson = JObject.FromObject(assetData);
+            Debug.Log($"ScriptableObject Asset Data BEFORE: {assetJson.ToString()}");
+
+            int testInt = assetJson?["properties"]?["testInt"]?.ToObject<int>() ?? -1;
+            Assert.That(testInt, Is.Not.EqualTo(-1), "ScriptableObject testInt property should be > -1");
+
+            testInt += 1;
+
+            assetJson["properties"]["testInt"] = testInt;
+            Debug.Log($"ScriptableObject Asset Data CHANGED: {assetJson.ToString()}");
+
+            ManageAsset.ModifyAsset(testSOPath, assetJson["properties"] as JObject);
+
+            assetData = ManageAsset.GetAssetData(testSOPath, false, conversionContext);
+            assetJson = JObject.FromObject(assetData);
+
+            //Debug.Log(assetJson?["properties"]?["testInt"] ?? "NULL");
+
+
+
+            Debug.Log($"ScriptableObject Asset Data AFTER: {assetJson.ToString()}");
+        }
+
+
+
+
+
+        [Test]
+        public void TestTimelineFormatting()
+        {
+           Debug.Log( AssetDatabase.AssetPathExists("Assets/UMCP/Tests/Playmode/Resources"));
+
+            TimelineAsset timelineAsset = AssetDatabase.LoadAssetAtPath<TimelineAsset>("Assets/UMCP/Tests/Playmode/Resources/UMCPTestTimeline.playable");
+            Assert.That(timelineAsset, Is.Not.Null, "Timeline asset Loaded");
+
+            EnrichedConversionContext conversionContext = new EnrichedConversionContext() { gameObjectSerializationMode = EnrichedConversionContext.GameObjectSerializationMode.TransformOnly };
+            bool hasresult = UnityObjectUtility.TrySerializeObject(timelineAsset, typeof(TimelineAsset), out string _serialized, out System.Exception _failure, conversionContext);
+            Assert.That(hasresult, Is.True, $"Failed to serialize Timeline asset with error {_failure?.ToString() ?? "NULL"}");
+
+
+        }
+
+
 
         [Test]
         [Description("Tests that IsValidAction correctly identifies valid actions")]

@@ -1,12 +1,15 @@
-using UnityEngine;
-using UnityEditor;
 using Newtonsoft.Json.Linq;
 using System;
-using System.IO;
-using System.Linq;
 using System.Collections.Generic;
-using UMCP.Editor.Helpers; // For Response class
 using System.Globalization;
+using System.IO;
+using System.IO.Ports;
+using System.Linq;
+using System.Xml.Linq;
+using UMCP.Editor.Helpers; // For Response class
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.WSA;
 
 namespace UMCP.Editor.Tools
 {
@@ -147,8 +150,15 @@ namespace UMCP.Editor.Tools
                 else if (lowerAssetType == "material")
                 {
                     Material mat = new Material(Shader.Find("Standard")); // Default shader
+                    if (properties != null)
+                    {
+                        if (!CustomUMCPTypeFormatterService.TryPopulateUnityObjectDirect<Material>(ref mat, properties.ToString(), out Exception _populationError))
+                        {
+                            return Response.Error(_populationError.Message);
+                        }
+                    }
+ 
                     // TODO: Apply properties from JObject (e.g., shader name, color, texture assignments)
-                    if(properties != null) ApplyMaterialProperties(mat, properties);
                     AssetDatabase.CreateAsset(mat, fullPath);
                     newAsset = mat;
                 }
@@ -245,7 +255,7 @@ namespace UMCP.Editor.Tools
             }
         }
 
-        private static object ModifyAsset(string path, JObject properties)
+        internal static object ModifyAsset(string path, JObject properties)
         { 
             if (string.IsNullOrEmpty(path)) return Response.Error("'path' is required for modify.");
             if (properties == null || !properties.HasValues) return Response.Error("'properties' are required for modify.");
@@ -253,12 +263,27 @@ namespace UMCP.Editor.Tools
             string fullPath = SanitizeAssetPath(path);
             if (!AssetExists(fullPath)) return Response.Error($"Asset not found at path: {fullPath}");
 
+
+
             try
             {
+
                 UnityEngine.Object asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(fullPath);
                 if (asset == null) return Response.Error($"Failed to load asset at path: {fullPath}");
 
+
                 bool modified = false; // Flag to track if any changes were made
+                EnrichedConversionContext modifiedTracker = new EnrichedConversionContext();
+                if(!UnityObjectUtility.TryPopulateObject(ref asset, properties.ToString(), out Exception _popError, modifiedTracker))
+                {
+                    return Response.Error($"Failed to apply properties to asset '{fullPath}': {_popError.Message}");
+                }
+                
+
+                modified = true;
+                /*
+
+
 
                 // --- NEW: Handle GameObject / Prefab Component Modification ---
                 if (asset is GameObject gameObject)
@@ -339,7 +364,7 @@ namespace UMCP.Editor.Tools
                     modified |= ApplyObjectProperties(asset, properties);
                 }
                 // --- End Existing Logic ---
-
+                */
                 // Check if any modification happened (either component or direct asset modification)
                 if (modified)
                 {
@@ -641,10 +666,10 @@ namespace UMCP.Editor.Tools
         {
             // AssetDatabase APIs are generally preferred over raw File/Directory checks for assets.
             // Check if it's a known asset GUID.
-            if (!string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(sanitizedPath)))
-            {
-                return true;
-            }
+            //if (!string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(sanitizedPath)) && AssetDatabase.GetAss)
+            //{
+            //    return true;
+            //}
             // AssetPathToGUID might not work for newly created folders not yet refreshed.
              // Check directory explicitly for folders.
             if(Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), sanitizedPath))) {
@@ -890,70 +915,93 @@ namespace UMCP.Editor.Tools
         /// <summary>
         /// Creates a serializable representation of an asset.
         /// </summary>
-        private static object GetAssetData(string path, bool generatePreview = false)
+        internal static object GetAssetData(string path, bool generatePreview = false, EnrichedConversionContext conversionContext = null)
         {
             if (string.IsNullOrEmpty(path) || !AssetExists(path)) return null;
-            
+
             string guid = AssetDatabase.AssetPathToGUID(path);
             Type assetType = AssetDatabase.GetMainAssetTypeAtPath(path);
             UnityEngine.Object asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
-            string previewBase64 = null;
-            int previewWidth = 0;
-            int previewHeight = 0;
+            bool isFolder = AssetDatabase.IsValidFolder(path);
+            var data = new Dictionary<string, object> {
+                 { "guid", guid },
+                 { "assetType", assetType?.FullName ?? "Unknown" },
+                 { "name", Path.GetFileNameWithoutExtension(path) },
+                 { "path", path },
+                 { "fileName", Path.GetFileName(path) },
+                 { "isFolder", isFolder },
+                 { "instanceID", asset?.GetInstanceID() ?? 0 },
+                 { "lastWriteTimeUtc", File.GetLastWriteTimeUtc(Path.Combine(Directory.GetCurrentDirectory(), path)).ToString("o")}, // ISO 8601
+             };
 
-            if (generatePreview && asset != null)
+            if (isFolder || asset == null || assetType == null) return data;
+
+            if (UnityObjectUtility.TrySerializeObject(asset, assetType, out string _result, out Exception _serialException, conversionContext))
             {
-                 Texture2D preview = AssetPreview.GetAssetPreview(asset);
-
-                if (preview != null)
-                {
-                     try {
-                         // Ensure texture is readable for EncodeToPNG
-                         // Creating a temporary readable copy is safer
-                         RenderTexture rt = RenderTexture.GetTemporary(preview.width, preview.height);
-                         Graphics.Blit(preview, rt);
-                         RenderTexture previous = RenderTexture.active;
-                         RenderTexture.active = rt;
-                         Texture2D readablePreview = new Texture2D(preview.width, preview.height);
-                         readablePreview.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-                         readablePreview.Apply();
-                         RenderTexture.active = previous;
-                         RenderTexture.ReleaseTemporary(rt);
-
-                         byte[] pngData = readablePreview.EncodeToPNG();
-                         previewBase64 = Convert.ToBase64String(pngData);
-                         previewWidth = readablePreview.width;
-                         previewHeight = readablePreview.height;
-                         UnityEngine.Object.DestroyImmediate(readablePreview); // Clean up temp texture
-
-                     } catch (Exception ex) {
-                          Debug.LogWarning($"Failed to generate readable preview for '{path}': {ex.Message}. Preview might not be readable.");
-                         // Fallback: Try getting static preview if available?
-                         // Texture2D staticPreview = AssetPreview.GetMiniThumbnail(asset);
-                     }
-                }
-                 else
-                 {
-                     Debug.LogWarning($"Could not get asset preview for {path} (Type: {assetType?.Name}). Is it supported?");
-                 }
+                data["properties"] = JObject.Parse(_result).ToObject<object>();//_result;
+            }
+            else
+            {
+                Debug.LogError(_serialException);
+                data["properties"] = _serialException.Message;
             }
 
-            return new
-            {
-                path = path,
-                guid = guid,
-                assetType = assetType?.FullName ?? "Unknown",
-                name = Path.GetFileNameWithoutExtension(path),
-                fileName = Path.GetFileName(path),
-                isFolder = AssetDatabase.IsValidFolder(path),
-                instanceID = asset?.GetInstanceID() ?? 0,
-                lastWriteTimeUtc = File.GetLastWriteTimeUtc(Path.Combine(Directory.GetCurrentDirectory(), path)).ToString("o"), // ISO 8601
-                // --- Preview Data ---
-                 previewBase64 = previewBase64, // PNG data as Base64 string
-                 previewWidth = previewWidth,
-                 previewHeight = previewHeight
-                 // TODO: Add more metadata? Importer settings? Dependencies?
-            };
+            return data;
+
+
+            //if (generatePreview && asset != null)
+            //{
+            //     Texture2D preview = AssetPreview.GetAssetPreview(asset);
+
+            //    if (preview != null)
+            //    {
+            //         try {
+            //             // Ensure texture is readable for EncodeToPNG
+            //             // Creating a temporary readable copy is safer
+            //             RenderTexture rt = RenderTexture.GetTemporary(preview.width, preview.height);
+            //             Graphics.Blit(preview, rt);
+            //             RenderTexture previous = RenderTexture.active;
+            //             RenderTexture.active = rt;
+            //             Texture2D readablePreview = new Texture2D(preview.width, preview.height);
+            //             readablePreview.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+            //             readablePreview.Apply();
+            //             RenderTexture.active = previous;
+            //             RenderTexture.ReleaseTemporary(rt);
+
+            //             byte[] pngData = readablePreview.EncodeToPNG();
+            //             previewBase64 = Convert.ToBase64String(pngData);
+            //             previewWidth = readablePreview.width;
+            //             previewHeight = readablePreview.height;
+            //             UnityEngine.Object.DestroyImmediate(readablePreview); // Clean up temp texture
+
+            //         } catch (Exception ex) {
+            //              Debug.LogWarning($"Failed to generate readable preview for '{path}': {ex.Message}. Preview might not be readable.");
+            //             // Fallback: Try getting static preview if available?
+            //             // Texture2D staticPreview = AssetPreview.GetMiniThumbnail(asset);
+            //         }
+            //    }
+            //     else
+            //     {
+            //         Debug.LogWarning($"Could not get asset preview for {path} (Type: {assetType?.Name}). Is it supported?");
+            //     }
+            //}
+
+            //return new
+            //{
+            //    path = path,
+            //    guid = guid,
+            //    assetType = assetType?.FullName ?? "Unknown",
+            //    name = Path.GetFileNameWithoutExtension(path),
+            //    fileName = Path.GetFileName(path),
+            //    isFolder = AssetDatabase.IsValidFolder(path),
+            //    instanceID = asset?.GetInstanceID() ?? 0,
+            //    lastWriteTimeUtc = File.GetLastWriteTimeUtc(Path.Combine(Directory.GetCurrentDirectory(), path)).ToString("o"), // ISO 8601
+            //    // --- Preview Data ---
+            //     previewBase64 = previewBase64, // PNG data as Base64 string
+            //     previewWidth = previewWidth,
+            //     previewHeight = previewHeight
+            //     // TODO: Add more metadata? Importer settings? Dependencies?
+            //};
         }
     }
 }

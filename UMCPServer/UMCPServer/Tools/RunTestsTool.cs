@@ -3,6 +3,7 @@ using ModelContextProtocol.Server;
 using Newtonsoft.Json.Linq;
 using System.ComponentModel;
 using System.IO;
+using System.Text.RegularExpressions;
 using UMCPServer.Services;
 
 namespace UMCPServer.Tools;
@@ -38,12 +39,12 @@ public class RunTestsTool
     /// Runs specified tests in the Unity Test Runner
     /// </summary>
     [McpServerTool]
-    [Description("Run the given tests in the Unity3D Testrunner. Automatically marks a new step for logging. ALWAYS run the 'ForceUpdateEditor' tool before using this tool and only use it after successful result.")]
+    [Description("Run the given tests in the Unity3D Testrunner. Automatically marks a new step for logging. ALWAYS run the 'ForceUpdateEditor' tool before using this tool and only use it after successful result. You don't need to run GetTests before running, the filter is resolved as part of the tool use - if no test are found the tool returns false")]
     public async Task<object> RunTests(
         [Description("The mode of the tests to run; either 'EditMode', 'PlayMode' or 'All'")]
         string TestMode = "All",
         
-        [Description("If not empty, only run the tests provided (format: 'MyTestClass.NameOfMyTest'). If empty, run all tests matching testmode")]
+        [Description("If empty, run all tests matching testmode. If not empty, only run the tests matching the filter provided (example format options: (1) (Partial) Namespace: 'foo.bar', (2) Class/Fixture name: 'fixtureclass', (3) Testname: 'nameOfTest', (4) Any combination of the preceding: 'fixtureclass.nameOfTest', 'foo.bar.fixtureclass', 'foo.bar.fixtureclass.nameOfTest')")]
         string[]? Filter = null,
         
         [Description("Whether to output TestResults")]
@@ -214,7 +215,20 @@ public class RunTestsTool
             // If we have a direct success response with running status
             if (directSuccess == true && response.Value<string>("status") == "running")
             {
-                _logger.LogInformation("Tests started running in Unity, waiting for completion...");
+                _logger.LogInformation($"Raw response: {response.ToString()}");
+
+                JObject dataObj = response.Value<JObject>("data")!;
+                if(dataObj == null)
+                    {
+                    return new
+                    {
+                        success = false,
+                        error = "Malformed response from Unity: missing 'guid' data"
+                    };
+                }
+
+                var guid = dataObj.Value<string>("guid");
+                _logger.LogInformation($"Tests with guid:{guid} started running in Unity, waiting for completion...");
 
                 // Extract the step GUID from Unity's response (it's embedded in the logs)
                 // We'll need to wait and then request the step logs
@@ -349,189 +363,222 @@ public class RunTestsTool
 
                                 //_logger.LogInformation($"[RUNTESTSTOOL] Message {cnt}/{entries.Count} = {message}");
 
-
-                                if (message.Contains("[RunTests] TEST_EXECUTION_COMPLETED"))
+                                if(TryExtractTestExecutionResult(message, guid, out TestExecutionResult _testExecutionResult))
                                 {
+                                    //Console.WriteLine("got test Execution results: " + _testExecutionResult.ToString());
 
-
-
-                                    _logger.LogInformation("Test execution completed, parsing results...");
-
-                                    // Mark completion detected but continue polling to capture file paths
-                                    if (!completionDetected)
+                                    completionData = new JObject
                                     {
-                                        completionDetected = true;
-                                        completionDetectedAttempt = attempt;
-                                        _logger.LogInformation("Completion detected at attempt {Attempt}, continuing to poll for file paths...", attempt);
-                                    }
-
-                                    // Parse the results from the console logs (including from all previous attempts)
-                                    var testResultFilePaths = new List<string>();
-                                    var allSuccess = true;
-                                    var testCount = 0;
-
-                                    foreach (var logEntry in entries)
-                                    {
-                                        string logMessage;
-
-                                        // Handle both plain format (string) and detailed format (object with message property)
-                                        if (logEntry.Type == JTokenType.String)
-                                        {
-                                            // Plain format: entry is a direct string
-                                            logMessage = logEntry.Value<string>() ?? "";
-                                        }
-                                        else
-                                        {
-                                            // Detailed format: entry is an object with message property
-                                            logMessage = logEntry["message"]?.Value<string>() ?? "";
-                                        }
-
-                                        // Parse success/failure messages to determine overall success
-                                        if (logMessage.Contains("[RunTests] ✗ FAIL:"))
-                                        {
-                                            allSuccess = false;
-                                        }
-
-                                        // Check the completion summary
-                                        if (logMessage.Contains("[RunTests] Test execution completed."))
-                                        {
-                                            // Parse format: "[RunTests] Test execution completed. AllSuccess: True, Tests: 0"
-                                            allSuccess = logMessage.Contains("AllSuccess: True");
-
-                                            // Extract test count
-                                            var testCountMatch = System.Text.RegularExpressions.Regex.Match(logMessage, @"Tests: (\d+)");
-                                            if (testCountMatch.Success && int.TryParse(testCountMatch.Groups[1].Value, out int parsedTestCount))
-                                            {
-                                                testCount = parsedTestCount;
-                                            }
-                                        }
-                                        
-                                        // Check for test result file paths
-                                        if (logMessage.Contains("[RunTests] TEST_RESULTS_FILE_PATH:"))
-                                        {
-                                           
-
-
-                                            var pathStart = logMessage.IndexOf("TEST_RESULTS_FILE_PATH:") + "TEST_RESULTS_FILE_PATH:".Length;
-                                            var path = logMessage.Substring(pathStart).Trim();
-
-                                            //Validate the found result file actually belongs to the current test run
-                                            string sampleDate = "20250819_134941.xml";
-                                            string testResultTime = path.Substring(path.Length - sampleDate.Length, sampleDate.Length - 4);
-
-                                            DateTime testResultTimeParsed = default;
-                                            try
-                                            {
-                                                testResultTimeParsed = DateTime.ParseExact(testResultTime, "yyyyMMdd_HHmmss", null);
-                                            }
-                                            catch
-                                            {
-                                                _logger.LogWarning("Failed to parse test result time from path '{Path}'. Skipping this file.", path);
-                                                continue; // Skip this file if parsing fails
-                                            }
-
-                                            if(testStartTime > testResultTimeParsed)
-                                                {
-                                                _logger.LogWarning("Test result file path '{Path}' has a timestamp earlier than the test start time. Skipping this file.", path);
-                                                continue; // Skip this file if it doesn't match the test run
-                                                }
-
-
-
-                                            _logger.LogInformation(testStartTime.ToString("yyyyMMdd_HHmmss") + " vs " + testResultTimeParsed.ToString("yyyyMMdd_HHmmss") + " = " + (testStartTime < testResultTimeParsed), attempt);
-                                            
-
-
-
-                                            if (!string.IsNullOrEmpty(path))
-                                            {
-                                                testResultFilePaths.Add(path);
-                                            }
-                                        }
-                                        
-                                        // Check for all test result file paths (when running All mode)
-                                        if (logMessage.Contains("[RunTests] TEST_RESULTS_FILE_PATHS_ALL:"))
-                                        {
-                                            var pathsStart = logMessage.IndexOf("TEST_RESULTS_FILE_PATHS_ALL:") + "TEST_RESULTS_FILE_PATHS_ALL:".Length;
-                                            var pathsString = logMessage.Substring(pathsStart).Trim();
-                                            if (!string.IsNullOrEmpty(pathsString))
-                                            {
-                                                // Clear existing paths and use the combined list
-                                                testResultFilePaths.Clear();
-                                                testResultFilePaths.AddRange(pathsString.Split(';').Where(p => !string.IsNullOrEmpty(p)));
-
-                                                for(int i = testResultFilePaths.Count - 1; i >= 0; i--)
-                                                    {
-                                                    // Validate the found result file actually belongs to the current test run
-                                                    string sampleDate = "20250819_134941.xml";
-                                                    string testResultTimeAll = testResultFilePaths[i].Substring(testResultFilePaths[i].Length - sampleDate.Length, sampleDate.Length - 4);
-
-                                                    DateTime testResultTimeParsedAll = default;
-                                                    try
-                                                    {
-                                                        testResultTimeParsedAll = DateTime.ParseExact(testResultTimeAll, "yyyyMMdd_HHmmss", null);
-                                                    }
-                                                    catch
-                                                    {
-                                                        _logger.LogWarning("Failed to parse test result time from path '{Path}'. Skipping this file.", testResultFilePaths[i]);
-                                                        continue; // Skip this file if parsing fails
-                                                    }
-                                                    if(testStartTime > testResultTimeParsedAll)
-                                                    {
-                                                        _logger.LogWarning("Test result file path '{Path}' has a timestamp earlier than the test start time. Skipping this file.", testResultFilePaths[i]);
-                                                        testResultFilePaths.RemoveAt(i--); // Remove and adjust index
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Test execution completed successfully (tool ran without errors)
-                                    // Return test result files regardless of whether individual tests passed or failed
-                                    if (testResultFilePaths.Count > 0)
-                                    {
-                                        completionData = new JObject
-                                        {
-                                            ["success"] = true,
-                                            ["testResultFiles"] = JArray.FromObject(new List<string>() { testResultFilePaths[testResultFilePaths.Count - 1] }),
-                                            ["message"] = testResultFilePaths.Count == 1 
-                                                ? $"Tests completed. Results saved to: {testResultFilePaths[0]}. Use InterpretTestResults tool to analyze the results."
-                                                : $"Tests completed. Results saved to: {testResultFilePaths[testResultFilePaths.Count - 1]}. Use InterpretTestResults tool to analyze the results.",
-                                            ["testCount"] = testCount,
-                                            ["allTestsPassed"] = allSuccess
-                                        };
-                                        _logger.LogInformation("File paths found, marking as completed");
-                                        completed = true;
-                                    }
-                                    else if (attempt - completionDetectedAttempt >= maxPostCompletionAttempts)
-                                    {
-                                        // We've polled long enough after completion detection without finding file paths
-                                        completionData = new JObject
-                                        {
-                                            ["success"] = true,
-                                            ["message"] = "Test execution completed but no test result files were found after extended polling.",
-                                            ["testCount"] = testCount,
-                                            ["allTestsPassed"] = allSuccess
-                                        };
-                                        _logger.LogWarning("No file paths found after {PostCompletionAttempts} additional polling attempts", maxPostCompletionAttempts);
-                                        completed = true;
-                                    }
-                                    else
-                                    {
-                                        // Continue polling for file paths
-                                        _logger.LogInformation("No file paths found yet, continuing to poll... (attempt {CurrentAttempt} of {MaxPostCompletion} post-completion attempts)", 
-                                            attempt - completionDetectedAttempt, maxPostCompletionAttempts);
-                                        completionData = new JObject
-                                        {
-                                            ["success"] = true,
-                                            ["message"] = "Test execution completed but no test result files were generated.",
-                                            ["testCount"] = testCount,
-                                            ["allTestsPassed"] = allSuccess
-                                        };
-                                    }
-
+                                        ["success"] = true,
+                                        ["startTime"] = _testExecutionResult.TestStart,
+                                        ["endTime"] = _testExecutionResult.TestEnd,
+                                        ["testResultFiles"] = JArray.FromObject(_testExecutionResult.TestResultPaths),
+                                        ["message"] = $"Tests completed. #{_testExecutionResult.TestResultPaths.Count} testmode results saved to: {string.Join(',', _testExecutionResult.TestResultPaths)}. Use InterpretTestResults tool to analyze these results.",
+                                        //["testCount"] = testCount,
+                                        //["allTestsPassed"] = allSuccess
+                                    };
+                                    _logger.LogInformation("File paths found, marking as completed");
+                                    completed = true;
                                     break; // Exit the foreach loop
                                 }
+
+                                //if (message.Contains("[RunTests] TEST_EXECUTION_COMPLETED"))
+                                //{
+
+
+
+                                //    _logger.LogInformation("Test execution completed, parsing results...");
+
+                                //    // Mark completion detected but continue polling to capture file paths
+                                //    if (!completionDetected)
+                                //    {
+                                //        completionDetected = true;
+                                //        completionDetectedAttempt = attempt;
+                                //        _logger.LogInformation("Completion detected at attempt {Attempt}, continuing to poll for file paths...", attempt);
+                                //    }
+
+                                //    // Parse the results from the console logs (including from all previous attempts)
+                                //    var testResultFilePaths = new List<string>();
+                                //    var allSuccess = true;
+                                //    var testCount = 0;
+
+                                //    foreach (var logEntry in entries)
+                                //    {
+                                //        string logMessage;
+
+                                //        // Handle both plain format (string) and detailed format (object with message property)
+                                //        if (logEntry.Type == JTokenType.String)
+                                //        {
+                                //            // Plain format: entry is a direct string
+                                //            logMessage = logEntry.Value<string>() ?? "";
+                                //        }
+                                //        else
+                                //        {
+                                //            // Detailed format: entry is an object with message property
+                                //            logMessage = logEntry["message"]?.Value<string>() ?? "";
+                                //        }
+
+
+
+
+
+
+
+
+                                //        // Parse success/failure messages to determine overall success
+                                //        if (logMessage.Contains("[RunTests] ✗ FAIL:"))
+                                //        {
+                                //            allSuccess = false;
+                                //        }
+
+                                //        // Check the completion summary
+                                //        if (logMessage.Contains("[RunTests] Test execution completed."))
+                                //        {
+                                //            // Parse format: "[RunTests] Test execution completed. AllSuccess: True, Tests: 0"
+                                //            allSuccess = logMessage.Contains("AllSuccess: True");
+
+                                //            // Extract test count
+                                //            var testCountMatch = System.Text.RegularExpressions.Regex.Match(logMessage, @"Tests: (\d+)");
+                                //            if (testCountMatch.Success && int.TryParse(testCountMatch.Groups[1].Value, out int parsedTestCount))
+                                //            {
+                                //                testCount = parsedTestCount;
+                                //            }
+                                //        }
+
+                                //        if(TryExtractTestResults(logMessage, out List<string> resultPaths))
+                                //        {
+                                //            testResultFilePaths.AddRange(resultPaths);
+                                //        }
+
+
+
+
+
+
+                                //        // Check for test result file paths
+                                //        //if (logMessage.Contains("[RunTests] TEST_RESULTS_FILE_PATH:"))
+                                //        //{
+
+
+
+                                //        //    var pathStart = logMessage.IndexOf("TEST_RESULTS_FILE_PATH:") + "TEST_RESULTS_FILE_PATH:".Length;
+                                //        //    var path = logMessage.Substring(pathStart).Trim();
+
+                                //        //    //Validate the found result file actually belongs to the current test run
+                                //        //    string sampleDate = "20250819_134941.xml";
+                                //        //    string testResultTime = path.Substring(path.Length - sampleDate.Length, sampleDate.Length - 4);
+
+                                //        //    DateTime testResultTimeParsed = default;
+                                //        //    try
+                                //        //    {
+                                //        //        testResultTimeParsed = DateTime.ParseExact(testResultTime, "yyyyMMdd_HHmmss", null);
+                                //        //    }
+                                //        //    catch
+                                //        //    {
+                                //        //        _logger.LogWarning("Failed to parse test result time from path '{Path}'. Skipping this file.", path);
+                                //        //        continue; // Skip this file if parsing fails
+                                //        //    }
+
+                                //        //    if(testStartTime > testResultTimeParsed)
+                                //        //        {
+                                //        //        _logger.LogWarning("Test result file path '{Path}' has a timestamp earlier than the test start time. Skipping this file.", path);
+                                //        //        continue; // Skip this file if it doesn't match the test run
+                                //        //        }
+
+
+
+                                //        //    _logger.LogInformation(testStartTime.ToString("yyyyMMdd_HHmmss") + " vs " + testResultTimeParsed.ToString("yyyyMMdd_HHmmss") + " = " + (testStartTime < testResultTimeParsed), attempt);
+
+
+
+
+                                //        //    if (!string.IsNullOrEmpty(path))
+                                //        //    {
+                                //        //        testResultFilePaths.Add(path);
+                                //        //    }
+                                //        //}
+
+                                //        //// Check for all test result file paths (when running All mode)
+                                //        //if (logMessage.Contains("[RunTests] TEST_RESULTS_FILE_PATHS_ALL:"))
+                                //        //{
+                                //        //    var pathsStart = logMessage.IndexOf("TEST_RESULTS_FILE_PATHS_ALL:") + "TEST_RESULTS_FILE_PATHS_ALL:".Length;
+                                //        //    var pathsString = logMessage.Substring(pathsStart).Trim();
+                                //        //    if (!string.IsNullOrEmpty(pathsString))
+                                //        //    {
+                                //        //        // Clear existing paths and use the combined list
+                                //        //        testResultFilePaths.Clear();
+                                //        //        testResultFilePaths.AddRange(pathsString.Split(';').Where(p => !string.IsNullOrEmpty(p)));
+
+                                //        //        for(int i = testResultFilePaths.Count - 1; i >= 0; i--)
+                                //        //            {
+                                //        //            // Validate the found result file actually belongs to the current test run
+                                //        //            string sampleDate = "20250819_134941.xml";
+                                //        //            string testResultTimeAll = testResultFilePaths[i].Substring(testResultFilePaths[i].Length - sampleDate.Length, sampleDate.Length - 4);
+
+                                //        //            DateTime testResultTimeParsedAll = default;
+                                //        //            try
+                                //        //            {
+                                //        //                testResultTimeParsedAll = DateTime.ParseExact(testResultTimeAll, "yyyyMMdd_HHmmss", null);
+                                //        //            }
+                                //        //            catch
+                                //        //            {
+                                //        //                _logger.LogWarning("Failed to parse test result time from path '{Path}'. Skipping this file.", testResultFilePaths[i]);
+                                //        //                continue; // Skip this file if parsing fails
+                                //        //            }
+                                //        //            if(testStartTime > testResultTimeParsedAll)
+                                //        //            {
+                                //        //                _logger.LogWarning("Test result file path '{Path}' has a timestamp earlier than the test start time. Skipping this file.", testResultFilePaths[i]);
+                                //        //                testResultFilePaths.RemoveAt(i--); // Remove and adjust index
+                                //        //            }
+                                //        //        }
+                                //        //    }
+                                //        //}
+                                //    }
+
+                                //    // Test execution completed successfully (tool ran without errors)
+                                //    // Return test result files regardless of whether individual tests passed or failed
+                                //    if (testResultFilePaths.Count > 0)
+                                //    {
+                                //        completionData = new JObject
+                                //        {
+                                //            ["success"] = true,
+                                //            ["testResultFiles"] = JArray.FromObject(testResultFilePaths),
+                                //            ["message"] =  $"Tests completed. #{testResultFilePaths.Count} Results saved to: {string.Join(',', testResultFilePaths)}. Use InterpretTestResults tool to analyze the results.",
+                                //            //["testCount"] = testCount,
+                                //            //["allTestsPassed"] = allSuccess
+                                //        };
+                                //        _logger.LogInformation("File paths found, marking as completed");
+                                //        completed = true;
+                                //    }
+                                //    else if (attempt - completionDetectedAttempt >= maxPostCompletionAttempts)
+                                //    {
+                                //        // We've polled long enough after completion detection without finding file paths
+                                //        completionData = new JObject
+                                //        {
+                                //            ["success"] = true,
+                                //            ["message"] = "Test execution completed but no test result files were found after extended polling.",
+                                //            //["testCount"] = testCount,
+                                //            //["allTestsPassed"] = allSuccess
+                                //        };
+                                //        _logger.LogWarning("No file paths found after {PostCompletionAttempts} additional polling attempts", maxPostCompletionAttempts);
+                                //        completed = true;
+                                //    }
+                                //    else
+                                //    {
+                                //        // Continue polling for file paths
+                                //        _logger.LogInformation("No file paths found yet, continuing to poll... (attempt {CurrentAttempt} of {MaxPostCompletion} post-completion attempts)", 
+                                //            attempt - completionDetectedAttempt, maxPostCompletionAttempts);
+                                //        completionData = new JObject
+                                //        {
+                                //            ["success"] = true,
+                                //            ["message"] = "Test execution completed but no test result files were generated.",
+                                //            //["testCount"] = testCount,
+                                //            //["allTestsPassed"] = allSuccess
+                                //        };
+                                //    }
+
+                                //    break; // Exit the foreach loop
+                                //}
                                 cnt++;
                             }
                         }
@@ -671,10 +718,140 @@ public class RunTestsTool
             };
         }
     }
-    
-    /// <summary>
-    /// Validates if the provided test mode is valid
-    /// </summary>
+
+    public class TestExecutionResult
+    {
+        public string Guid { get; set; } = "";
+        public string TestStart { get; set; } = "";
+        public string TestEnd { get; set; } = "";
+        public List<string> TestResultPaths { get; set; } = new List<string>();
+
+        public override string ToString()
+        {
+            return $"GUID: {Guid}, TestStart: {TestStart}, TestEnd: {TestEnd}, TestResultPaths: [{((TestResultPaths == null) ? "NULL" : string.Join(", ", TestResultPaths))}]";
+        }
+    }
+
+
+
+    public static bool TryExtractTestExecutionResult(string input, string guid, out TestExecutionResult result)
+        {
+        result = null!;
+        if (string.IsNullOrEmpty(input) || !input.StartsWith("[RunTests] TEST_EXECUTION_COMPLETED") || !input.Contains(guid))
+        {
+            return false;
+        }
+
+        result = new TestExecutionResult();
+        try
+        {
+            // Extract GUID
+            var guidMatch = Regex.Match(input, @"GUID:\s*([^,}]+)");
+            if (guidMatch.Success)
+            {
+                result.Guid = guidMatch.Groups[1].Value.Trim();
+            }
+
+            // Extract TestStart
+            var testStartMatch = Regex.Match(input, @"TestStart:\s*([^,}]+)");
+            if (testStartMatch.Success)
+            {
+                result.TestStart = testStartMatch.Groups[1].Value.Trim();
+            }
+
+            // Extract TestEnd
+            var testEndMatch = Regex.Match(input, @"TestEnd:\s*([^,}]+)");
+            if (testEndMatch.Success)
+            {
+                result.TestEnd = testEndMatch.Groups[1].Value.Trim();
+            }
+
+            // Extract TestResultPaths
+            var pathsMatch = Regex.Match(input, @"TestResultPaths:\s*\[(.*?)\]}", RegexOptions.Singleline);
+            if (pathsMatch.Success)
+            {
+                var pathsString = pathsMatch.Groups[1].Value;
+
+                // Split by comma but be careful with paths that contain commas
+                // Use regex to find all quoted paths
+                var pathPattern = @"'([^']+)'";
+                var pathMatches = Regex.Matches(pathsString, pathPattern);
+
+                foreach (Match match in pathMatches)
+                {
+                    if (match.Success && match.Groups.Count > 1)
+                    {
+                        var path = match.Groups[1].Value.Trim();
+                        if (!string.IsNullOrWhiteSpace(path))
+                        {
+                            result.TestResultPaths.Add(path);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log the exception if you have a logging framework
+            Console.WriteLine($"Error parsing test execution string: {ex.Message}");
+            // Return what we've parsed so far
+        }
+
+        return true;
+    }
+
+
+
+
+
+
+
+
+
+        private static bool TryExtractTestResults(string _inputMessage, out List<string> resultPaths)
+    {
+        resultPaths = new List<string>();
+
+        if(!_inputMessage.StartsWith("[RunTests] TEST_RESULTS_FILE_PATHS_ALL:"))
+            {
+            return false;
+            }
+
+
+        // Remove the prefix text
+        string cleaned = _inputMessage.Substring(_inputMessage.IndexOf("TEST_RESULTS_FILE_PATHS_ALL:") + "TEST_RESULTS_FILE_PATHS_ALL:".Length);
+        
+
+        // Find all strings between single quotes
+        var matches = Regex.Matches(cleaned, @"'([^']*)'");
+
+        foreach (Match match in matches)
+        {
+            string value = match.Groups[1].Value.Trim();
+            if (!string.IsNullOrEmpty(value) && value.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+            {
+                resultPaths.Add(value);
+            }
+        }
+
+        return (resultPaths.Count > 0);
+    }
+
+
+
+    //private static bool TryExtractDateTime(string _inputMessage, out DateTime result)
+    //{
+
+    //}
+
+
+
+
+
+
+        /// <summary>
+        /// Validates if the provided test mode is valid
+        /// </summary>
     private static bool IsValidTestMode(string testMode)
     {
         return testMode == "EditMode" || testMode == "PlayMode" || testMode == "All";

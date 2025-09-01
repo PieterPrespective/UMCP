@@ -281,9 +281,30 @@ namespace UMCP.Editor.Tools
             }
 
             // Set Transform
-            Vector3? position = ParseVector3(@params["position"] as JArray);
-            Vector3? rotation = ParseVector3(@params["rotation"] as JArray);
-            Vector3? scale = ParseVector3(@params["scale"] as JArray);
+            
+
+
+
+            //Debug.Log("Got position params: " + @params?["position"]?.ToString() ?? "NULL");
+
+
+            Vector3? position = null;// = ParseVector3(@params["position"] as JArray);
+            Vector3? rotation = null;// ParseVector3(@params["rotation"] as JArray);
+            Vector3? scale = null;//ParseVector3(@params["scale"] as JArray);
+            if (@params?["transform"] != null)
+            {
+                position = ParseVector3(@params["transform"]?["position"] as JArray);
+                rotation = ParseVector3(@params["transform"]?["rotation"] as JArray);
+                scale = ParseVector3(@params["transform"]?["scale"] as JArray);
+            }
+            else
+            {
+                position = ParseVector3(@params["position"] as JArray);
+                rotation = ParseVector3(@params["rotation"] as JArray);
+                scale = ParseVector3(@params["scale"] as JArray);
+            }
+
+
 
             if (position.HasValue) newGo.transform.localPosition = position.Value;
             if (rotation.HasValue) newGo.transform.localEulerAngles = rotation.Value;
@@ -446,6 +467,8 @@ namespace UMCP.Editor.Tools
 
         private static object ModifyGameObject(JObject @params, JToken targetToken, string searchMethod)
         {
+            Debug.LogWarning("ModifyGameObject called with params: " + @params.ToString());
+
             GameObject targetGo = FindObjectInternal(targetToken, searchMethod);
             if (targetGo == null)
             {
@@ -488,9 +511,10 @@ namespace UMCP.Editor.Tools
             }
 
             // Set Active State
-            bool? setActive = @params["setActive"]?.ToObject<bool?>();
+            bool? setActive = @params["isActive"]?.ToObject<bool?>();
             if (setActive.HasValue && targetGo.activeSelf != setActive.Value)
             {
+                //Debug.LogWarning(">>>> Setting active state of " + targetGo.name + " to " + setActive.Value);
                 targetGo.SetActive(setActive.Value);
                  modified = true;
             }
@@ -558,26 +582,38 @@ namespace UMCP.Editor.Tools
                 }
             }
 
-            // Transform Modifications
-            Vector3? position = ParseVector3(@params["position"] as JArray);
-            Vector3? rotation = ParseVector3(@params["rotation"] as JArray);
-            Vector3? scale = ParseVector3(@params["scale"] as JArray);
+            if(@params["transform"] != null)
+            {
+                
+            
 
-            if (position.HasValue && targetGo.transform.localPosition != position.Value) 
-            { 
-                targetGo.transform.localPosition = position.Value; 
-                modified = true;
+                JObject fromTransform = JObject.FromObject(@params["transform"]);
+                Debug.LogWarning($"[ManageGameObject] 'transform' parameter is deprecated. Use 'position', 'rotation', and 'scale' instead: {fromTransform.ToString()}");
+                // Transform Modifications
+                Vector3? position = ParseVector3(fromTransform["position"] as JArray);
+                Vector3? rotation = ParseVector3(fromTransform["rotation"] as JArray);
+                Vector3? scale = ParseVector3(fromTransform["scale"] as JArray);
+
+                if (position.HasValue && targetGo.transform.localPosition != position.Value)
+                {
+                    targetGo.transform.localPosition = position.Value;
+                    modified = true;
+                }
+                if (rotation.HasValue && targetGo.transform.localEulerAngles != rotation.Value)
+                {
+                    targetGo.transform.localEulerAngles = rotation.Value;
+                    modified = true;
+                }
+                if (scale.HasValue && targetGo.transform.localScale != scale.Value)
+                {
+                    targetGo.transform.localScale = scale.Value;
+                    modified = true;
+                }
             }
-            if (rotation.HasValue && targetGo.transform.localEulerAngles != rotation.Value) 
-            { 
-                targetGo.transform.localEulerAngles = rotation.Value; 
-                modified = true;
-            }
-            if (scale.HasValue && targetGo.transform.localScale != scale.Value) 
-            { 
-                targetGo.transform.localScale = scale.Value; 
-                modified = true;
-            }
+
+            
+
+            
 
             // --- Component Modifications --- 
             // Note: These might need more specific Undo recording per component
@@ -645,8 +681,13 @@ namespace UMCP.Editor.Tools
         private static object DeleteGameObject(JToken targetToken, string searchMethod)
         {
             // Find potentially multiple objects if name/tag search is used without find_all=false implicitly
-            List<GameObject> targets = FindObjectsInternal(targetToken, searchMethod, true); // find_all=true for delete safety
-            
+            List<GameObject> targets = FindObjectsInternal(targetToken, searchMethod, true, out string errorMsg); // find_all=true for delete safety
+
+            if (!string.IsNullOrEmpty(errorMsg))
+            {
+                return Response.Error(errorMsg);
+            }
+
             if (targets.Count == 0)
             {
                 return Response.Error($"Target GameObject(s) ('{targetToken}') not found using method '{searchMethod ?? "default"}'.");
@@ -681,8 +722,14 @@ namespace UMCP.Editor.Tools
 
         private static object FindGameObjects(JObject @params, JToken targetToken, string searchMethod)
         {
+             //By default Find multiple objects based on criteria
              bool findAll = @params["findAll"]?.ToObject<bool>() ?? false;
-             List<GameObject> foundObjects = FindObjectsInternal(targetToken, searchMethod, findAll, @params);
+             List<GameObject> foundObjects = FindObjectsInternal(targetToken, searchMethod, findAll, out string errorMsg, @params);
+
+            if(!string.IsNullOrEmpty(errorMsg))
+            {
+                return Response.Error(errorMsg);
+            }
 
              if (foundObjects.Count == 0)
              {
@@ -704,8 +751,16 @@ namespace UMCP.Editor.Tools
              try
              {
                  Component[] components = targetGo.GetComponents<Component>();
-                 var componentData = components.Select(c => GetComponentData(c)).ToList();
-                 return Response.Success($"Retrieved {componentData.Count} components from '{targetGo.name}'.", componentData);
+
+                 Debug.Log("Found components: " + string.Join(", ", components.Select(c => c.GetType().Name)));
+                 
+
+                var componentData = components.Select(c => GetComponentData(c)).ToList();
+
+
+
+
+                return Response.Success($"Retrieved {componentData.Count} components from '{targetGo.name}'.", componentData);
              }
              catch (Exception e)
              {   
@@ -826,15 +881,22 @@ namespace UMCP.Editor.Tools
             {
                  findAll = false;
             }
-            List<GameObject> results = FindObjectsInternal(targetToken, searchMethod, findAll, findParams);
+            List<GameObject> results = FindObjectsInternal(targetToken, searchMethod, findAll, out string _errorMsg, findParams);
+
+            if (!string.IsNullOrEmpty(_errorMsg))
+            {
+                Debug.LogWarning("Unhandlesd errormsg: " + _errorMsg);
+            }
+
             return results.Count > 0 ? results[0] : null;
         }
         
         /// <summary>
         /// Core logic for finding GameObjects based on various criteria.
         /// </summary>
-        private static List<GameObject> FindObjectsInternal(JToken targetToken, string searchMethod, bool findAll, JObject findParams = null)
+        private static List<GameObject> FindObjectsInternal(JToken targetToken, string searchMethod, bool findAll, out string _errorMsg, JObject findParams = null)
         {
+            _errorMsg = null;
             List<GameObject> results = new List<GameObject>();
             string searchTerm = findParams?["searchTerm"]?.ToString() ?? targetToken?.ToString(); // Use searchTerm if provided, else the target itself
             bool searchInChildren = findParams?["searchInChildren"]?.ToObject<bool>() ?? false;
@@ -885,11 +947,26 @@ namespace UMCP.Editor.Tools
                 case "by_tag":
                      var searchPoolTag = rootSearchObject ? rootSearchObject.GetComponentsInChildren<Transform>(searchInactive).Select(t => t.gameObject) :
                                                           GetAllSceneObjects(searchInactive);
+
+                    //CASE : the LLM mistakenly puts the tag value in tag param instead of target
+                    if (string.IsNullOrEmpty(searchTerm) && findParams["tag"] != null)
+                        {
+                            searchTerm = findParams["tag"].ToString();
+                        }
+
+                    //Debug.Log("searchTerm for tag: " + searchTerm + ", tag: " + ((findParams["tag"] == null) ? "NULL" : findParams["tag"].ToString()));
                     results.AddRange(searchPoolTag.Where(go => go.CompareTag(searchTerm)));
                     break;
                 case "by_layer":
                      var searchPoolLayer = rootSearchObject ? rootSearchObject.GetComponentsInChildren<Transform>(searchInactive).Select(t => t.gameObject) :
                                                            GetAllSceneObjects(searchInactive);
+
+                    //CASE : the LLM mistakenly puts the tag value in layer param instead of target
+                    if (string.IsNullOrEmpty(searchTerm) && findParams["layer"] != null)
+                    {
+                        searchTerm = findParams["layer"].ToString();
+                    }
+
                     if (int.TryParse(searchTerm, out int layerIndex))
                     {
                          results.AddRange(searchPoolLayer.Where(go => go.layer == layerIndex));
@@ -901,18 +978,31 @@ namespace UMCP.Editor.Tools
                     }
                     break;
                 case "by_component":
+
+                    //CASE : the LLM mistakenly puts the tag value in layer param instead of target
+                    if (string.IsNullOrEmpty(searchTerm) && findParams["componentType"] != null)
+                    {
+                        searchTerm = findParams["componentType"].ToString();
+                    }
+
                     Type componentType = FindType(searchTerm);
                     if (componentType != null)
                     {
                          // Determine FindObjectsInactive based on the searchInactive flag
                          FindObjectsInactive findInactive = searchInactive ? FindObjectsInactive.Include : FindObjectsInactive.Exclude;
-                         // Replace FindObjectsOfType with FindObjectsByType, specifying the sorting mode and inactive state
-                         var searchPoolComp = rootSearchObject 
+                        // Replace FindObjectsOfType with FindObjectsByType, specifying the sorting mode and inactive state
+
+                        
+
+                        var searchPoolComp = rootSearchObject 
                              ? rootSearchObject.GetComponentsInChildren(componentType, searchInactive).Select(c => (c as Component).gameObject) 
                              : UnityEngine.Object.FindObjectsByType(componentType, findInactive, FindObjectsSortMode.None).Select(c => (c as Component).gameObject);
                          results.AddRange(searchPoolComp.Where(go => go != null)); // Ensure GO is valid
                     }
-                    else { Debug.LogWarning($"[ManageGameObject.Find] Component type not found: {searchTerm}"); }
+                    else {
+                        _errorMsg = $"[ManageGameObject.Find] Component type not found: '{searchTerm}'";
+                        Debug.LogWarning($"[ManageGameObject.Find] Component type not found: {searchTerm}"); 
+                    }
                     break;
                 case "by_id_or_name_or_path": // Helper method used internally
                      if (int.TryParse(searchTerm, out int id)) {
@@ -1656,9 +1746,22 @@ namespace UMCP.Editor.Tools
         /// <summary>
         /// Creates a serializable representation of a GameObject.
         /// </summary>
-        private static object GetGameObjectData(GameObject go)
+        private static object GetGameObjectData(GameObject go, EnrichedConversionContext enrichedConversionContext = null)
         {
             if (go == null) return null;
+            if (UnityObjectUtility.TrySerializeObject(go, typeof(GameObject), out string serialResult, out Exception serializationException, enrichedConversionContext))
+            {
+                Debug.Log($"[GetGameObjectData] Successfully serialized GameObject '{go.name}' = {serialResult}");
+                return JObject.Parse(serialResult).ToObject<object>();
+            }
+            else if (serializationException != null)
+            {
+                //throw (serializationException);
+                Debug.LogError(serializationException);
+                return null;
+            }
+            else return null;
+            /*
             return new
             {
                 name = go.name,
@@ -1688,13 +1791,14 @@ namespace UMCP.Editor.Tools
                  // Or just component names:
                  componentNames = go.GetComponents<Component>().Select(c => c.GetType().FullName).ToList()
             };
+            */
         }
 
         /// <summary>
         /// Creates a serializable representation of a Component.
         /// TODO: Add property serialization.
         /// </summary>
-         private static object GetComponentData(Component c)
+         internal static object GetComponentData(Component c, EnrichedConversionContext enrichedConversionContext = null)
          {
              if (c == null) return null;
              var data = new Dictionary<string, object> {
@@ -1702,25 +1806,64 @@ namespace UMCP.Editor.Tools
                  { "instanceID", c.GetInstanceID() }
              };
 
-             // Attempt to serialize public properties/fields (can be noisy/complex)
-             /*
-             try {
-                 var properties = new Dictionary<string, object>();
-                 var type = c.GetType();
-                 BindingFlags flags = BindingFlags.Public | BindingFlags.Instance;
-                 
-                 foreach (var prop in type.GetProperties(flags).Where(p => p.CanRead && p.GetIndexParameters().Length == 0)) {
-                     try { properties[prop.Name] = prop.GetValue(c); } catch { }
-                 }
-                 foreach (var field in type.GetFields(flags)) {
-                      try { properties[field.Name] = field.GetValue(c); } catch { }
-                 }
-                 data["properties"] = properties;
-             } catch (Exception ex) {
-                 data["propertiesError"] = ex.Message;
-             }
-             */
-             return data;
+            if(UnityObjectUtility.TrySerializeObject(c, c.GetType(), out string serialResult, out Exception serializationException, enrichedConversionContext))
+            {
+                data["properties"] = JObject.Parse(serialResult).ToObject<object>();
+            }
+            else if (serializationException != null)
+            {
+                data["properties"] = $"Exporting type '{c.GetType().FullName}' resulted in an error: " + serializationException.Message;
+            }
+
+            //if (CustomUMCPTypeFormatterService.TryFindBestConverter(c.GetType(), out _, out int distance))
+            //{
+            //    try
+            //    {
+            //        if (distance > 0)
+            //        {
+            //            Debug.LogWarning($"[GetComponentData] Using non-exact converter for type '{c.GetType().FullName}' with distance {distance}. This may lead to incomplete or incorrect serialization.");
+            //        }
+
+            //        if (CustomUMCPTypeFormatterService.TrySerializeDirect(c, out string _serialResult, out Exception _serialFail, enrichedConversionContext))
+            //        {
+            //            data["properties"] = _serialResult;
+            //        }
+            //        else
+            //        {
+            //            data["properties"] = $"Exporting type '{c.GetType().FullName}' resulted in an error: " + _serialFail.Message;
+            //        }
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        data["properties"] = $"Exporting type properties '{c.GetType().FullName}' resulted in an error: " + ex.Message;
+            //    }
+            //}
+            //else
+            //{
+            //    data["properties"] = $"Could not export properties on type '{c.GetType().FullName}', no custom converters are available"; // No custom converter available
+            //}
+
+
+
+            // Attempt to serialize public properties/fields (can be noisy/complex)
+            /*
+            try {
+                var properties = new Dictionary<string, object>();
+                var type = c.GetType();
+                BindingFlags flags = BindingFlags.Public | BindingFlags.Instance;
+
+                foreach (var prop in type.GetProperties(flags).Where(p => p.CanRead && p.GetIndexParameters().Length == 0)) {
+                    try { properties[prop.Name] = prop.GetValue(c); } catch { }
+                }
+                foreach (var field in type.GetFields(flags)) {
+                     try { properties[field.Name] = field.GetValue(c); } catch { }
+                }
+                data["properties"] = properties;
+            } catch (Exception ex) {
+                data["propertiesError"] = ex.Message;
+            }
+            */
+            return data;
          }
     }
 }

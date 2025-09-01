@@ -1,17 +1,18 @@
-using UnityEngine;
-using UnityEditor;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
-using System;
-using Newtonsoft.Json;
-using System.Net.Sockets;
-using System.Threading.Tasks;
-using System.Text;
-using System.Collections.Generic;
 using System.Linq;
-using UMCP.Editor.Models;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading.Tasks;
 using UMCP.Editor.Data;
+using UMCP.Editor.Models;
+using UMCP.Editor.Serialization;
+using UnityEditor;
+using UnityEngine;
 
 namespace UMCP.Editor.Windows
 {
@@ -404,7 +405,7 @@ namespace UMCP.Editor.Windows
 
             // Add/update unityMCP while preserving other servers
             existingConfig.mcpServers.unityMCP = JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JToken>(
-                JsonConvert.SerializeObject(unityMCPConfig)
+                JSONConversionUtility.SerializeObject(unityMCPConfig)
             );
 
             // Write the merged configuration back to file

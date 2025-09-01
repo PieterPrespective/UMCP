@@ -1,6 +1,5 @@
 using System.Collections;
 using NUnit.Framework;
-using UMCPServer.Tests.IntegrationTests.UnityBridge;
 
 namespace UMCPServer.Tests.IntegrationTests;
 

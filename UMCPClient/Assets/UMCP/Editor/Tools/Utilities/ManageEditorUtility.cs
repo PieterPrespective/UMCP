@@ -231,6 +231,7 @@ namespace UMCP.Editor.Tools.Utilities
         {
             try
             {
+                Debug.Log($">>>>> Setting active tool to '{toolName}'");
                 if (Enum.TryParse<Tool>(toolName, true, out Tool targetTool))
                 {
                     if (targetTool != Tool.None && targetTool <= Tool.Custom)

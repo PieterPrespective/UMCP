@@ -6,6 +6,9 @@ using UnityEngine;
 
 namespace UnityEditor.TestTools.TestRunner.Api
 {
+
+    
+
     /// <summary>
     /// Forwarder utility to handle internal ITestRunnerApi operations
     /// This class has access to internal types through assembly reference
@@ -45,7 +48,7 @@ namespace UnityEditor.TestTools.TestRunner.Api
         /// <summary>
         /// Returns whether the Unity TestRunner is currently Active
         /// </summary>
-        private static bool IsRunningTestInUnityTestRunner
+        public static bool IsRunningTestInUnityTestRunner
         {
             get
             {
@@ -143,6 +146,7 @@ namespace UnityEditor.TestTools.TestRunner.Api
         /// </summary>
         public static void SaveResultToFile(ITestResultAdaptor results, string xmlFilePath)
         {
+            Debug.Log($"[TestRunnerAPIForwarder] Attempting to save test results to {xmlFilePath} = {testApi == null} = {results.AssertCount}");
             if (testApi == null)
             {
                 CreateTestRunnerApi();
@@ -180,7 +184,7 @@ namespace UnityEditor.TestTools.TestRunner.Api
             var executionSettings = new ExecutionSettings()
             {
                 runSynchronously = false,
-                targetPlatform = null
+                targetPlatform = null,
             };
             
             Debug.Log($"[TestRunnerAPIForwarder] Executing tests in {mode} mode with {((testNames != null) ? string.Join(',', testNames) : "NULL")} specified test(s)");

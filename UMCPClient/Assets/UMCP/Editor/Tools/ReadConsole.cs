@@ -31,6 +31,30 @@ namespace UMCP.Editor.Tools
         private static FieldInfo _instanceIdField;
         // Note: Timestamp is not directly available in LogEntry; need to parse message or find alternative?
 
+        /// <summary>
+        /// Logs are read from the Unity C++ side using internal APIs via reflection - see 
+        /// extern public static StackTraceLogType GetStackTraceLogType(LogType logType);
+        /// extern public static void SetStackTraceLogType(LogType logType, StackTraceLogType stackTraceType);
+        /// https://github.com/Unity-Technologies/UnityCsReference/blob/master/Runtime/Export/Application/Application.bindings.cs
+        /// 
+        /// The console window receives its log entries directly from the 'PlayerConnectionLogReceiver' class - which registers with EditorConnection instance
+        /// https://github.com/Unity-Technologies/UnityCsReference/blob/4b463aa72c78ec7490b7f03176bd012399881768/Editor/Mono/PlayerConnectionLogReceiver.cs
+        /// The console window receives log messages via 'AddMessage'
+        /// https://github.com/Unity-Technologies/UnityCsReference/blob/4b463aa72c78ec7490b7f03176bd012399881768/Editor/Mono/ConsoleWindow.cs#L1209
+        /// which stores the messages to Logentries via 'AddMessagesImpl'
+        /// https://github.com/Unity-Technologies/UnityCsReference/blob/4b463aa72c78ec7490b7f03176bd012399881768/Editor/Mono/LogEntries.bindings.cs#L150
+        /// 
+        /// 
+        /// 
+        /// 
+        /// 
+        /// </summary>
+
+
+
+
+
+
         // Static constructor for reflection setup
         static ReadConsole()
         {
@@ -165,6 +189,9 @@ namespace UMCP.Editor.Tools
                          // Need a way to get timestamp per log entry.
                     }
 
+                    //Debug.Log("LOG TYPE FILTER:" + string.Join(", ", types));
+
+
                     return GetConsoleEntries(types, count, filterText, format, includeStacktrace);
                 }
                 else
@@ -213,7 +240,6 @@ namespace UMCP.Editor.Tools
                     return Response.Success("No log entries requested, returning empty list.", new List<object>());
                 }
             }
-
 
 
             List<object> formattedEntries = new List<object>();
@@ -271,15 +297,17 @@ namespace UMCP.Editor.Tools
                      // --- Filtering ---
                      // Filter by type
                      LogType currentType = GetLogTypeFromMode(mode);
-                    //Debug.Log($"[READCONSOLE] Entry {i}/{totalEntries}: mode={mode} = {currentType}, message='{message}', file='{file}', line={line}, types={string.Join(',', types)}");
+                    
                     //Debug.Log($"[READCONSOLE] {currentType.ToString().ToLowerInvariant()} == {string.Join(',', types)}");
                     if (!types.Contains(currentType.ToString().ToLowerInvariant()))
                      {
                          continue;
                      }
 
-                      // Filter by text (case-insensitive)
-                     if (!string.IsNullOrEmpty(filterText) && message.IndexOf(filterText, StringComparison.OrdinalIgnoreCase) < 0)
+                    //Debug.Log($"[READCONSOLE] Entry {i}/{totalEntries}: mode={mode} = {currentType}, message='{message}', file='{file}', line={line}, types={string.Join(',', types)}");
+
+                    // Filter by text (case-insensitive)
+                    if (!string.IsNullOrEmpty(filterText) && message.IndexOf(filterText, StringComparison.OrdinalIgnoreCase) < 0)
                      {
                          continue;
                      }

@@ -1,20 +1,18 @@
-using UnityEngine;
-using UnityEditor;
-using UnityEditor.TestTools.TestRunner.Api;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Collections;
 using UMCP.Editor.Helpers;
 using Unity.EditorCoroutines.Editor;
+using UnityEditor;
+using UnityEngine;
 
 namespace UMCP.Editor.Tools
 {
     /// <summary>
     /// Data structure representing test result information
     /// </summary>
+    [Serializable]
     public struct TestResultData
     {
         public string TestName { get; set; }
@@ -61,284 +59,288 @@ namespace UMCP.Editor.Tools
         private static bool testRunCompleted = false;
         private static List<string> testResultFilePaths;
 
-        /// <summary>
-        /// Checks if tests are currently running
-        /// </summary>
-        public static bool IsRunning()
-        {
-            return isRunning;
-        }
+        ///// <summary>
+        ///// Checks if tests are currently running
+        ///// </summary>
+        //public static bool IsRunning()
+        //{
+        //    return isRunning;
+        //}
 
-        /// <summary>
-        /// Resets the test runner state to allow new test runs
-        /// Use this method if the test runner gets stuck in a running state
-        /// </summary>
-        public static void ResetState()
-        {
-            var wasRunning = isRunning;
-            var wasCompleted = testRunCompleted;
-            var previousStep = stepGuid;
+        ///// <summary>
+        ///// Resets the test runner state to allow new test runs
+        ///// Use this method if the test runner gets stuck in a running state
+        ///// </summary>
+        //public static void ResetState()
+        //{
+        //    var wasRunning = isRunning;
+        //    var wasCompleted = testRunCompleted;
+        //    var previousStep = stepGuid;
             
-            isRunning = false;
-            testRunCompleted = false;
-            currentResults = null;
-            currentCallback = null;
-            stepGuid = null;
-            testResultFilePaths = null;
+        //    isRunning = false;
+        //    testRunCompleted = false;
+        //    currentResults = null;
+        //    currentCallback = null;
+        //    stepGuid = null;
+        //    testResultFilePaths = null;
             
-            // Stop any running coroutine
-            if (currentCoroutine != null)
-            {
-                EditorCoroutineUtility.StopCoroutine(currentCoroutine);
-                currentCoroutine = null;
-            }
+        //    // Stop any running coroutine
+        //    if (currentCoroutine != null)
+        //    {
+        //        EditorCoroutineUtility.StopCoroutine(currentCoroutine);
+        //        currentCoroutine = null;
+        //    }
             
-            // Unregister any lingering callbacks
-            TestRunnerAPIForwarderUtility.UnregisterCallbacks();
+        //    // Unregister any lingering callbacks
+        //    TestRunnerAPIForwarderUtility.UnregisterCallbacks();
             
-            // Force reset the TestRunnerApi instance
-            TestRunnerAPIForwarderUtility.ResetTestRunnerApi();
+        //    // Force reset the TestRunnerApi instance
+        //    TestRunnerAPIForwarderUtility.ResetTestRunnerApi();
             
-            // Log the reset with detailed state information
-            Debug.Log($"[RunTests] Test runner state has been reset. Previous state - Running: {wasRunning}, Completed: {wasCompleted}, Step: {previousStep ?? "null"}");
+        //    // Log the reset with detailed state information
+        //    Debug.Log($"[RunTests] Test runner state has been reset. Previous state - Running: {wasRunning}, Completed: {wasCompleted}, Step: {previousStep ?? "null"}");
             
-            if (wasRunning)
-            {
-                Debug.Log($"[RunTests] FORCED_RESET - Previous step: {previousStep}");
-            }
+        //    if (wasRunning)
+        //    {
+        //        Debug.Log($"[RunTests] FORCED_RESET - Previous step: {previousStep}");
+        //    }
 
-            EditorApplication.delayCall += () => 
-            {
-                // Ensure the editor is responsive after reset
-                if (!EditorStateHelper.IsEditorResponsive)
-                {
-                    Debug.LogWarning("[RunTests] Editor was not responsive after reset, forcing update to ensure state is clean.");
-                    EditorApplication.update();
-                }
-            };
+        //    EditorApplication.delayCall += () => 
+        //    {
+        //        // Ensure the editor is responsive after reset
+        //        if (!EditorStateHelper.IsEditorResponsive)
+        //        {
+        //            Debug.LogWarning("[RunTests] Editor was not responsive after reset, forcing update to ensure state is clean.");
+        //            EditorApplication.update();
+        //        }
+        //    };
 
             
-        }
+        //}
 
-        /// <summary>
-        /// Runs tests based on the provided parameters
-        /// </summary>
-        public static void RunTestsByParameters(RunTestsParameters parameters, Action<RunTestsResult> callback)
-        {
-            if (isRunning)
-            {
-                callback?.Invoke(new RunTestsResult
-                {
-                    AllSuccess = false,
-                    TestResults = new List<TestResultData>(),
-                    LogData = "Tests are already running"
-                });
-                return;
-            }
+        ///// <summary>
+        ///// Runs tests based on the provided parameters
+        ///// </summary>
+        //public static void RunTestsByParameters(RunTestsParameters parameters, Action<RunTestsResult> callback)
+        //{
+        //    if (isRunning)
+        //    {
+        //        callback?.Invoke(new RunTestsResult
+        //        {
+        //            AllSuccess = false,
+        //            TestResults = new List<TestResultData>(),
+        //            LogData = "Tests are already running"
+        //        });
+        //        return;
+        //    }
 
-            isRunning = true;
-            testRunCompleted = false;
-            currentResults = new List<TestResultData>();
-            currentCallback = callback;
-            testResultFilePaths = new List<string>();
+        //    isRunning = true;
+        //    testRunCompleted = false;
+        //    currentResults = new List<TestResultData>();
+        //    currentCallback = callback;
+        //    testResultFilePaths = new List<string>();
             
-            // Generate unique step GUID for logging
-            stepGuid = $"RunTests_{Guid.NewGuid():N}";
+        //    // Generate unique step GUID for logging
+        //    stepGuid = $"RunTests_{Guid.NewGuid():N}";
+        //    RunTestsStateUtility.StateStorage.RunTestsGUID = stepGuid;
+
+        //    // Start coroutine to handle async test execution
+        //    currentCoroutine = EditorCoroutineUtility.StartCoroutineOwnerless(RunTestsCoroutine(parameters));
+        //}
+
+        //private static IEnumerator RunTestsCoroutine(RunTestsParameters parameters)
+        //{
+        //    // Mark start of new step
+        //    Tools.MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = stepGuid });
             
-            // Start coroutine to handle async test execution
-            currentCoroutine = EditorCoroutineUtility.StartCoroutineOwnerless(RunTestsCoroutine(parameters));
-        }
+        //    yield return null;
 
-        private static IEnumerator RunTestsCoroutine(RunTestsParameters parameters)
-        {
-            // Mark start of new step
-            Tools.MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = stepGuid });
+        //    try
+        //    {
+        //        // Initialize the test API through forwarder
+        //        TestRunnerAPIForwarderUtility.CreateTestRunnerApi();
+
+        //        // Register callbacks through forwarder
+        //        TestRunnerAPIForwarderUtility.RegisterCallbacks(OnTestFinished, OnRunFinished);
+
+        //        // Determine test mode
+        //        TestMode mode = TestMode.EditMode;
+        //        if (parameters.TestMode == "PlayMode")
+        //        {
+        //            mode = TestMode.PlayMode;
+        //        }
+        //        else if (parameters.TestMode == "All")
+        //        {
+        //            // For "All", we'll need to run both modes separately
+        //            yield return RunTestsForMode(TestMode.EditMode, parameters.Filter);
+
+        //            yield return new EditorWaitForSeconds(5f); // Small delay between runs
+
+        //            yield return RunTestsForMode(TestMode.PlayMode, parameters.Filter);
+        //        }
+        //        else
+        //        {
+        //            yield return RunTestsForMode(mode, parameters.Filter);
+        //        }
+        //    }
+        //    finally
+        //    {
+        //        isRunning = false;
+        //    }
+        //}
+
+        //private static IEnumerator RunTestsForMode(TestMode mode, string[] filter)
+        //{
+        //    // Reset completion flag for this run
+        //    testRunCompleted = false;
             
-            yield return null;
-
-            try
-            {
-                // Initialize the test API through forwarder
-                TestRunnerAPIForwarderUtility.CreateTestRunnerApi();
-
-                // Register callbacks through forwarder
-                TestRunnerAPIForwarderUtility.RegisterCallbacks(OnTestFinished, OnRunFinished);
-
-                // Determine test mode
-                TestMode mode = TestMode.EditMode;
-                if (parameters.TestMode == "PlayMode")
-                {
-                    mode = TestMode.PlayMode;
-                }
-                else if (parameters.TestMode == "All")
-                {
-                    // For "All", we'll need to run both modes separately
-                    yield return RunTestsForMode(TestMode.EditMode, parameters.Filter);
-
-                    yield return new EditorWaitForSeconds(5f); // Small delay between runs
-
-                    yield return RunTestsForMode(TestMode.PlayMode, parameters.Filter);
-                }
-                else
-                {
-                    yield return RunTestsForMode(mode, parameters.Filter);
-                }
-            }
-            finally
-            {
-                isRunning = false;
-            }
-        }
-
-        private static IEnumerator RunTestsForMode(TestMode mode, string[] filter)
-        {
-            // Reset completion flag for this run
-            testRunCompleted = false;
+        //    //Debug.Log($"[RunTests] Starting test execution for mode: {mode}, Filter: {string.Join(", ", filter ?? new string[0])}, Step: {stepGuid}");
             
-            //Debug.Log($"[RunTests] Starting test execution for mode: {mode}, Filter: {string.Join(", ", filter ?? new string[0])}, Step: {stepGuid}");
-            
-            // Execute tests through forwarder
-            TestRunnerAPIForwarderUtility.ExecuteTests(mode, filter);
+        //    // Execute tests through forwarder
+        //    TestRunnerAPIForwarderUtility.ExecuteTests(mode, filter);
 
-            // Wait for tests to complete by checking the completion flag
-            var startTime = DateTime.Now;
-            var timeout = TimeSpan.FromMinutes(10); // 10 minute timeout for test execution
-            var lastLogTime = DateTime.Now;
+        //    //CRITICAL DESIGN FLAW: Executing tests can lead to adomain reload which will reset all static state!
+
+
+        //    // Wait for tests to complete by checking the completion flag
+        //    var startTime = DateTime.Now;
+        //    var timeout = TimeSpan.FromMinutes(10); // 10 minute timeout for test execution
+        //    var lastLogTime = DateTime.Now;
             
-            while (!testRunCompleted && (DateTime.Now - startTime) < timeout)
-            {
-                yield return new EditorWaitForSeconds(0.1f);
+        //    while (!testRunCompleted && (DateTime.Now - startTime) < timeout)
+        //    {
+        //        yield return new EditorWaitForSeconds(0.1f);
                 
-                // Log status every 10 seconds for debugging
-                if ((DateTime.Now - lastLogTime).TotalSeconds > 10)
-                {
-                    var elapsed = (DateTime.Now - startTime).TotalSeconds;
-                    Debug.Log($"[RunTests] Still waiting for test completion. Elapsed: {elapsed:F1}s, Mode: {mode}, Step: {stepGuid}");
-                    lastLogTime = DateTime.Now;
-                }
-            }
+        //        // Log status every 10 seconds for debugging
+        //        if ((DateTime.Now - lastLogTime).TotalSeconds > 10)
+        //        {
+        //            var elapsed = (DateTime.Now - startTime).TotalSeconds;
+        //            Debug.Log($"[RunTests] Still waiting for test completion. Elapsed: {elapsed:F1}s, Mode: {mode}, Step: {stepGuid}");
+        //            lastLogTime = DateTime.Now;
+        //        }
+        //    }
             
-            if (!testRunCompleted)
-            {
-                Debug.LogWarning($"[RunTests] Test execution for mode {mode} timed out after {timeout.TotalMinutes} minutes");
-                Debug.LogWarning($"[RunTests] TEST_EXECUTION_TIMEOUT - Step: {stepGuid}");
-            }
-            else
-            {
-                yield return new EditorWaitForSeconds(1f);
-                Debug.Log($"[RunTests] Test execution completed successfully for mode: {mode}, Step: {stepGuid}");
+        //    if (!testRunCompleted)
+        //    {
+        //        Debug.LogWarning($"[RunTests] Test execution for mode {mode} timed out after {timeout.TotalMinutes} minutes");
+        //        Debug.LogWarning($"[RunTests] TEST_EXECUTION_TIMEOUT - Step: {stepGuid}");
+        //    }
+        //    else
+        //    {
+        //        yield return new EditorWaitForSeconds(1f);
+        //        Debug.Log($"[RunTests] Test execution completed successfully for mode: {mode}, Step: {stepGuid}");
                 
-                // Save test results to XML file
-                SaveTestResultsToFile(mode);
-            }
-        }
+        //        // Save test results to XML file
+        //        SaveTestResultsToFile(mode);
+        //    }
+        //}
 
-        private static void OnTestFinished(TestRunnerAPIForwarderUtility.ForwardedTestResult result)
-        {
-            var testResult = new TestResultData
-            {
-                TestName = result.TestName,
-                TestAssembly = result.TestAssembly,
-                TestNamespace = result.TestNamespace,
-                ContainerScript = result.ContainerScript,
-                Success = result.Success,
-                FailureMessage = result.FailureMessage,
-                StackTrace = result.StackTrace,
-                Duration = result.Duration
-            };
+        //public static void OnTestFinished(TestRunnerAPIForwarderUtility.ForwardedTestResult result)
+        //{
+        //    var testResult = new TestResultData
+        //    {
+        //        TestName = result.TestName,
+        //        TestAssembly = result.TestAssembly,
+        //        TestNamespace = result.TestNamespace,
+        //        ContainerScript = result.ContainerScript,
+        //        Success = result.Success,
+        //        FailureMessage = result.FailureMessage,
+        //        StackTrace = result.StackTrace,
+        //        Duration = result.Duration
+        //    };
             
-            currentResults.Add(testResult);
-        }
+        //    currentResults.Add(testResult);
+        //}
 
-        private static void SaveTestResultsToFile(TestMode mode)
-        {
-            try
-            {
-                // Get test results from the forwarder
-                var testResult = TestRunnerAPIForwarderUtility.GetLastRunResult();
-                if (testResult != null)
-                {
-                    // Create TestResults directory in project root (one folder up from Assets)
-                    var projectRoot = System.IO.Path.GetDirectoryName(Application.dataPath);
-                    var resultsDirectory = System.IO.Path.Combine(projectRoot, "TestResults");
-                    if (!System.IO.Directory.Exists(resultsDirectory))
-                    {
-                        System.IO.Directory.CreateDirectory(resultsDirectory);
-                    }
+        //private static void SaveTestResultsToFile(TestMode mode)
+        //{
+        //    try
+        //    {
+        //        // Get test results from the forwarder
+        //        var testResult = TestRunnerAPIForwarderUtility.GetLastRunResult();
+        //        if (testResult != null)
+        //        {
+        //            // Create TestResults directory in project root (one folder up from Assets)
+        //            var projectRoot = System.IO.Path.GetDirectoryName(Application.dataPath);
+        //            var resultsDirectory = System.IO.Path.Combine(projectRoot, "TestResults");
+        //            if (!System.IO.Directory.Exists(resultsDirectory))
+        //            {
+        //                System.IO.Directory.CreateDirectory(resultsDirectory);
+        //            }
                     
-                    // Generate filename with timestamp and mode
-                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                    var filename = $"TestResults_{mode}_{stepGuid}_{timestamp}.xml";
-                    var filePath = System.IO.Path.Combine(resultsDirectory, filename);
+        //            // Generate filename with timestamp and mode
+        //            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        //            var filename = $"TestResults_{mode}_{stepGuid}_{timestamp}.xml";
+        //            var filePath = System.IO.Path.Combine(resultsDirectory, filename);
                     
-                    // Save results to file
-                    TestRunnerAPIForwarderUtility.SaveResultToFile(testResult, filePath);
+        //            // Save results to file
+        //            TestRunnerAPIForwarderUtility.SaveResultToFile(testResult, filePath);
                     
-                    // Log the file path for the server to pick up
-                    Debug.Log($"[RunTests] TEST_RESULTS_FILE_PATH: {filePath}");
+        //            // Log the file path for the server to pick up
+        //            Debug.Log($"[RunTests] TEST_RESULTS_FILE_PATH: {filePath}");
                     
-                    // Store the path for later reference
-                    testResultFilePaths.Add(filePath);
-                }
-                else
-                {
-                    Debug.LogWarning($"[RunTests] No test results available to save for mode: {mode}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[RunTests] Failed to save test results to file: {ex}");
-            }
-        }
+        //            // Store the path for later reference
+        //            testResultFilePaths.Add(filePath);
+        //        }
+        //        else
+        //        {
+        //            Debug.LogWarning($"[RunTests] No test results available to save for mode: {mode}");
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Debug.LogError($"[RunTests] Failed to save test results to file: {ex}");
+        //    }
+        //}
 
-        private static void OnRunFinished()
-        {
-            Debug.Log($"[RunTests] OnRunFinished callback triggered for step: {stepGuid}");
+        //public static void OnRunFinished()
+        //{
+        //    Debug.Log($"[RunTests] OnRunFinished callback triggered for step: {stepGuid}");
             
-            // Signal completion FIRST to stop any polling loops
-            testRunCompleted = true;
+        //    // Signal completion FIRST to stop any polling loops
+        //    testRunCompleted = true;
             
-            // Unregister callbacks through forwarder
-            TestRunnerAPIForwarderUtility.UnregisterCallbacks();
+        //    // Unregister callbacks through forwarder
+        //    TestRunnerAPIForwarderUtility.UnregisterCallbacks();
             
-            // Log all test result file paths BEFORE completion marker for better server-side detection
-            if (testResultFilePaths != null && testResultFilePaths.Count > 0)
-            {
-                Debug.Log($"[RunTests] TEST_RESULTS_FILE_PATHS_ALL: {string.Join(";", testResultFilePaths)}");
-            }
+        //    // Log all test result file paths BEFORE completion marker for better server-side detection
+        //    if (testResultFilePaths != null && testResultFilePaths.Count > 0)
+        //    {
+        //        Debug.Log($"[RunTests] TEST_RESULTS_FILE_PATHS_ALL: {string.Join(";", testResultFilePaths)}");
+        //    }
             
-            // Log completion marker for server-side polling detection (after file paths)
-            Debug.Log($"[RunTests] TEST_EXECUTION_COMPLETED - Step: {stepGuid}");
+        //    // Log completion marker for server-side polling detection (after file paths)
+        //    Debug.Log($"[RunTests] TEST_EXECUTION_COMPLETED - Step: {stepGuid}");
             
-            // Get log data if requested
-            string logData = "";
-            if (currentCallback != null)
-            {
-                var result = Tools.RequestStepLogs.HandleCommand(new JObject 
-                { 
-                    ["stepName"] = stepGuid,
-                    ["includeStacktraces"] = true
-                });
+        //    // Get log data if requested
+        //    string logData = "";
+        //    if (currentCallback != null)
+        //    {
+        //        var result = Tools.RequestStepLogs.HandleCommand(new JObject 
+        //        { 
+        //            ["stepName"] = stepGuid,
+        //            ["includeStacktraces"] = true
+        //        });
                 
-                if (result is JObject logResult && logResult["status"]?.ToString() == "success")
-                {
-                    logData = logResult["data"]?.ToString() ?? "";
-                }
-            }
+        //        if (result is JObject logResult && logResult["status"]?.ToString() == "success")
+        //        {
+        //            logData = logResult["data"]?.ToString() ?? "";
+        //        }
+        //    }
             
-            // Prepare final result
-            var finalResult = new RunTestsResult
-            {
-                AllSuccess = currentResults.All(r => r.Success),
-                TestResults = new List<TestResultData>(currentResults),
-                LogData = logData
-            };
+        //    // Prepare final result
+        //    var finalResult = new RunTestsResult
+        //    {
+        //        AllSuccess = currentResults.All(r => r.Success),
+        //        TestResults = new List<TestResultData>(currentResults),
+        //        LogData = logData
+        //    };
             
-            currentCallback?.Invoke(finalResult);
-            isRunning = false;
+        //    currentCallback?.Invoke(finalResult);
+        //    isRunning = false;
             
-            Debug.Log($"[RunTests] OnRunFinished callback completed for step: {stepGuid}");
-        }
+        //    Debug.Log($"[RunTests] OnRunFinished callback completed for step: {stepGuid}");
+        //}
 
     }
 
@@ -400,32 +402,26 @@ namespace UMCP.Editor.Tools
                 isProcessing = true;
                 responseData = null;
 
-                // Run tests with immediate response approach to avoid main thread blocking
-                // For long-running test operations, we return success immediately and let tests run in background
-                
                 // Check if tests are already running
-                if (RunTestsUtility.IsRunning())
+                if (RunTestsStateUtility.StateStorage.IsRunning)
                 {
                     return Response.Error("Tests are already running. Please wait for current test execution to complete.");
                 }
-                
-                // Start test execution without blocking
-                RunTestsUtility.RunTestsByParameters(parameters, (result) =>
-                {
-                    // Only log completion status - detailed results are in the XML file
-                    Debug.Log($"[RunTests] Test execution completed. AllSuccess: {result.AllSuccess}, Tests: {result.TestResults?.Count ?? 0}");
-                });
 
-                // Return immediate success response in format expected by current MCP server
-                return new { 
-                    success = true, 
-                    message = "Test execution started successfully. Check Unity console for results or use RequestStepLogs to retrieve detailed results.", 
-                    status = "running",
-                    data = new JObject
+                //Immediately return a result to the server to indicate 'startup success'
+                bool success = RunTestsStateUtility.RunTestsByParameters(parameters, out string guid, out string failMessage);
+                return new {
+                    success = success,
+                    message = (success) ?
+                    "Test execution started successfully. Check Unity console for results or use RequestStepLogs to retrieve detailed results." :
+                    failMessage,
+                    status = (RunTestsStateUtility.IsRunningTests()) ? "running" : "idle",
+                    data = (RunTestsStateUtility.IsRunningTests()) ? new JObject
                     {
+                        ["guid"] = guid,    
                         ["message"] = "Tests are running in background. Results will appear in Unity console.",
                         ["status"] = "running"
-                    }
+                    } : null
                 };
             }
             catch (Exception e)

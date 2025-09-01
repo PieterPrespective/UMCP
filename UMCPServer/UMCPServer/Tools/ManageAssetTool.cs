@@ -1,8 +1,9 @@
-using System.ComponentModel;
-using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Newtonsoft.Json.Linq;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using UMCPServer.Services;
 
 namespace UMCPServer.Tools;
@@ -127,10 +128,12 @@ public class ManageAssetTool
                 };
             }
 
-            // Check if the response indicates success or error
-            string? status = result.Value<string?>("status");
+            Console.WriteLine("Raw Response: " + result.ToString());
 
-            if (status == "error")
+            // Check if the response indicates success or error
+            bool? status = result.Value<bool?>("success");
+
+            if (status.HasValue && !status.Value)
             {
                 return new
                 {
@@ -140,7 +143,7 @@ public class ManageAssetTool
             }
 
             // Extract the result
-            var resultData = result["result"];
+            var resultData = result["data"];
 
             // Handle different action responses
             return action switch
@@ -269,21 +272,35 @@ public class ManageAssetTool
 
         if (properties != null)
         {
-            if (properties is string jsonString)
+            Console.WriteLine($"Transform object type: {properties.GetType().Name}, value: {properties.ToString()}");
+
+            //CASE : the LLM has given the component value as a JSON string - for some reason this is directly interpreted as a JsonElement by c#?
+            if (properties is JsonElement elem)
             {
-                try
+                // Convert JsonElement to appropriate .NET type
+                object? converted = elem.ValueKind switch
                 {
-                    parameters["properties"] = JObject.Parse(jsonString);
-                }
-                catch (Exception)
-                {
-                    // If parsing fails, treat as raw object
-                    parameters["properties"] = JToken.FromObject(properties);
-                }
+                    JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, object>>(elem.GetRawText()),
+                    JsonValueKind.Array => JsonSerializer.Deserialize<List<object>>(elem.GetRawText()),
+                    JsonValueKind.String => elem.GetString(),
+                    JsonValueKind.Number => elem.GetInt32(), // or GetDouble() based on expected type
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    _ => null
+                };
+                properties = converted;
             }
-            else
+            else if (properties is JToken token)
             {
-                parameters["properties"] = JToken.FromObject(properties);
+                properties = SerializationUtility.ConvertJTokenToObjectSmart(token);
+            }
+
+            parameters["properties"] = ConvertToJToken(properties);
+
+            //CASE : the LLM has given the component value as a JSON string
+            if (parameters["properties"] is JValue || parameters?["properties"]?.Type == JTokenType.String)
+            {
+                parameters["transform"] = JObject.Parse((string)parameters?["properties"]);
             }
         }
 
@@ -308,11 +325,30 @@ public class ManageAssetTool
         return parameters;
     }
 
+        private static JToken ConvertToJToken(object value)
+    {
+        if (value is string jsonString)
+        {
+            try
+            {
+                return JToken.Parse(jsonString);
+            }
+            catch
+            {
+                return JToken.FromObject(value);
+            }
+        }
+        return JToken.FromObject(value);
+    }
+
+
+
+
     #endregion
 
     #region Response Handlers
 
-    private static object HandleImportResponse(JToken? resultData)
+    private static dynamic HandleImportResponse(JToken? resultData)
     {
         return new
         {
@@ -322,7 +358,7 @@ public class ManageAssetTool
         };
     }
 
-    private static object HandleCreateResponse(JToken? resultData)
+    private static dynamic HandleCreateResponse(JToken? resultData)
     {
         return new
         {
@@ -333,7 +369,7 @@ public class ManageAssetTool
         };
     }
 
-    private static object HandleModifyResponse(JToken? resultData)
+    private static dynamic HandleModifyResponse(JToken? resultData)
     {
         return new
         {
@@ -343,7 +379,7 @@ public class ManageAssetTool
         };
     }
 
-    private static object HandleDeleteResponse(JToken? resultData)
+    private static dynamic HandleDeleteResponse(JToken? resultData)
     {
         return new
         {
@@ -352,7 +388,7 @@ public class ManageAssetTool
         };
     }
 
-    private static object HandleDuplicateResponse(JToken? resultData)
+    private static dynamic HandleDuplicateResponse(JToken? resultData)
     {
         return new
         {
@@ -363,7 +399,7 @@ public class ManageAssetTool
         };
     }
 
-    private static object HandleMoveRenameResponse(JToken? resultData)
+    private static dynamic HandleMoveRenameResponse(JToken? resultData)
     {
         return new
         {
@@ -374,7 +410,7 @@ public class ManageAssetTool
         };
     }
 
-    private static object HandleSearchResponse(JToken? resultData)
+    private static dynamic HandleSearchResponse(JToken? resultData)
     {
         var assets = resultData?["assets"]?.ToObject<List<object>>() ?? new List<object>();
         var totalAssets = resultData?.Value<int?>("totalAssets") ?? 0;
@@ -392,7 +428,7 @@ public class ManageAssetTool
         };
     }
 
-    private static object HandleGetInfoResponse(JToken? resultData)
+    private static dynamic HandleGetInfoResponse(JToken? resultData)
     {
         return new
         {
@@ -402,7 +438,7 @@ public class ManageAssetTool
         };
     }
 
-    private static object HandleCreateFolderResponse(JToken? resultData)
+    private static dynamic HandleCreateFolderResponse(JToken? resultData)
     {
         return new
         {
@@ -413,7 +449,7 @@ public class ManageAssetTool
         };
     }
 
-    private static object HandleGetComponentsResponse(JToken? resultData)
+    private static dynamic HandleGetComponentsResponse(JToken? resultData)
     {
         var components = resultData?.ToObject<List<object>>() ?? new List<object>();
         

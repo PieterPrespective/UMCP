@@ -301,72 +301,87 @@ namespace UMCP.Editor.Windows
                     EditorCoroutineUtility.StopCoroutine(runTestsTimeoutCoroutine);
                 }
                 runTestsTimeoutCoroutine = EditorCoroutineUtility.StartCoroutineOwnerless(RunTestsTimeout());
-                
-                // Use async method to avoid blocking Unity's main thread
-                RunTestsUtility.RunTestsByParameters(parameters, (result) =>
+
+                bool runStarted = RunTestsStateUtility.RunTestsByParameters(parameters, out string _guid, out string failMessage, "TestToolsWindow.TestCompletedCallback");
+
+                if(!runStarted)
                 {
-                    // Stop timeout coroutine since we got a response
+                    // Failed to start run (e.g. tests already running)
                     if (runTestsTimeoutCoroutine != null)
                     {
                         EditorCoroutineUtility.StopCoroutine(runTestsTimeoutCoroutine);
                         runTestsTimeoutCoroutine = null;
                     }
-                    
-                    // Check if result contains error message (from already running tests)
-                    if (result.TestResults == null && !string.IsNullOrEmpty(result.LogData) && result.LogData.Contains("already running"))
-                    {
-                        runTestsResult = "Error: " + result.LogData;
-                    }
-                    else
-                    {
-                        // Update UI on main thread
-                        runTestsResult = "Test execution completed!\n\n";
-                        runTestsResult += $"All Tests Successful: {result.AllSuccess}\n\n";
-                        
-                        if (outputTestResults && result.TestResults != null)
-                        {
-                            runTestsResult += "Test Results:\n";
-                            foreach (var testResult in result.TestResults)
-                            {
-                                string status = testResult.Success ? "✓ PASS" : "✗ FAIL";
-                                runTestsResult += $"{status}: {testResult.TestName} ({testResult.Duration:F3}s)\n";
-                                
-                                // Show failure details if test failed
-                                if (!testResult.Success && !string.IsNullOrEmpty(testResult.FailureMessage))
-                                {
-                                    runTestsResult += $"   Error: {testResult.FailureMessage}\n";
-                                    if (!string.IsNullOrEmpty(testResult.StackTrace))
-                                    {
-                                        // Show first 3 lines of stack trace for brevity
-                                        var stackLines = testResult.StackTrace.Split('\n');
-                                        var linesToShow = System.Math.Min(3, stackLines.Length);
-                                        for (int i = 0; i < linesToShow; i++)
-                                        {
-                                            runTestsResult += $"   {stackLines[i].Trim()}\n";
-                                        }
-                                        if (stackLines.Length > 3)
-                                        {
-                                            runTestsResult += "   ...\n";
-                                        }
-                                    }
-                                    runTestsResult += "\n";
-                                }
-                            }
-                            runTestsResult += "\n";
-                        }
-                        
-                        if (outputLogData && !string.IsNullOrEmpty(result.LogData))
-                        {
-                            runTestsResult += "Log Data:\n";
-                            runTestsResult += result.LogData;
-                        }
-                    }
-                    
+                    runTestsResult = "Error: " + failMessage;
                     isExecutingRunTests = false;
-                    
-                    // Force UI repaint
                     Repaint();
-                });
+                }
+
+                //// Use async method to avoid blocking Unity's main thread
+                //RunTestsUtility.RunTestsByParameters(parameters, (result) =>
+                //{
+                //    // Stop timeout coroutine since we got a response
+                //    if (runTestsTimeoutCoroutine != null)
+                //    {
+                //        EditorCoroutineUtility.StopCoroutine(runTestsTimeoutCoroutine);
+                //        runTestsTimeoutCoroutine = null;
+                //    }
+
+                //    // Check if result contains error message (from already running tests)
+                //    if (result.TestResults == null && !string.IsNullOrEmpty(result.LogData) && result.LogData.Contains("already running"))
+                //    {
+                //        runTestsResult = "Error: " + result.LogData;
+                //    }
+                //    else
+                //    {
+                //        // Update UI on main thread
+                //        runTestsResult = "Test execution completed!\n\n";
+                //        runTestsResult += $"All Tests Successful: {result.AllSuccess}\n\n";
+
+                //        if (outputTestResults && result.TestResults != null)
+                //        {
+                //            runTestsResult += "Test Results:\n";
+                //            foreach (var testResult in result.TestResults)
+                //            {
+                //                string status = testResult.Success ? "✓ PASS" : "✗ FAIL";
+                //                runTestsResult += $"{status}: {testResult.TestName} ({testResult.Duration:F3}s)\n";
+
+                //                // Show failure details if test failed
+                //                if (!testResult.Success && !string.IsNullOrEmpty(testResult.FailureMessage))
+                //                {
+                //                    runTestsResult += $"   Error: {testResult.FailureMessage}\n";
+                //                    if (!string.IsNullOrEmpty(testResult.StackTrace))
+                //                    {
+                //                        // Show first 3 lines of stack trace for brevity
+                //                        var stackLines = testResult.StackTrace.Split('\n');
+                //                        var linesToShow = System.Math.Min(3, stackLines.Length);
+                //                        for (int i = 0; i < linesToShow; i++)
+                //                        {
+                //                            runTestsResult += $"   {stackLines[i].Trim()}\n";
+                //                        }
+                //                        if (stackLines.Length > 3)
+                //                        {
+                //                            runTestsResult += "   ...\n";
+                //                        }
+                //                    }
+                //                    runTestsResult += "\n";
+                //                }
+                //            }
+                //            runTestsResult += "\n";
+                //        }
+
+                //        if (outputLogData && !string.IsNullOrEmpty(result.LogData))
+                //        {
+                //            runTestsResult += "Log Data:\n";
+                //            runTestsResult += result.LogData;
+                //        }
+                //    }
+
+                //    isExecutingRunTests = false;
+
+                //    // Force UI repaint
+                //    Repaint();
+                //});
             }
             catch (System.Exception ex)
             {
@@ -375,12 +390,86 @@ namespace UMCP.Editor.Windows
                 isExecutingRunTests = false;
                 Repaint();
             }
+
+           
+
+
         }
-        
+
+        private static void TestCompletedCallback(RunTestsResult _result)
+        {
+            // Get the instance of the window
+            var window = GetWindow<TestToolsWindow>("UMCP Test Tools");
+
+
+            // Stop timeout coroutine since we got a response
+            if (window.runTestsTimeoutCoroutine != null)
+            {
+                EditorCoroutineUtility.StopCoroutine(window.runTestsTimeoutCoroutine);
+                window.runTestsTimeoutCoroutine = null;
+            }
+
+            // Check if result contains error message (from already running tests)
+            if (_result.TestResults == null && !string.IsNullOrEmpty(_result.LogData) && _result.LogData.Contains("already running"))
+            {
+                window.runTestsResult = "Error: " + _result.LogData;
+            }
+            else
+            {
+                // Update UI on main thread
+                window.runTestsResult = "Test execution completed!\n\n";
+                window.runTestsResult += $"All Tests Successful: {_result.AllSuccess}\n\n";
+
+                if (window.outputTestResults && _result.TestResults != null)
+                {
+                    window.runTestsResult += "Test Results:\n";
+                    foreach (var testResult in _result.TestResults)
+                    {
+                        string status = testResult.Success ? "✓ PASS" : "✗ FAIL";
+                        window.runTestsResult += $"{status}: {testResult.TestName} ({testResult.Duration:F3}s)\n";
+
+                        // Show failure details if test failed
+                        if (!testResult.Success && !string.IsNullOrEmpty(testResult.FailureMessage))
+                        {
+                            window.runTestsResult += $"   Error: {testResult.FailureMessage}\n";
+                            if (!string.IsNullOrEmpty(testResult.StackTrace))
+                            {
+                                // Show first 3 lines of stack trace for brevity
+                                var stackLines = testResult.StackTrace.Split('\n');
+                                var linesToShow = System.Math.Min(3, stackLines.Length);
+                                for (int i = 0; i < linesToShow; i++)
+                                {
+                                    window.runTestsResult += $"   {stackLines[i].Trim()}\n";
+                                }
+                                if (stackLines.Length > 3)
+                                {
+                                    window.runTestsResult += "   ...\n";
+                                }
+                            }
+                            window.runTestsResult += "\n";
+                        }
+                    }
+                    window.runTestsResult += "\n";
+                }
+
+                if (window.outputLogData && !string.IsNullOrEmpty(_result.LogData))
+                {
+                    window.runTestsResult += "Log Data:\n";
+                    window.runTestsResult += _result.LogData;
+                }
+            }
+
+            window.isExecutingRunTests = false;
+
+            // Force UI repaint
+            window.Repaint();
+        }
+
+
         #endregion
-        
+
         #region Results Section
-        
+
         private void DrawResultsSection()
         {
             EditorGUILayout.LabelField("Results", EditorStyles.boldLabel);

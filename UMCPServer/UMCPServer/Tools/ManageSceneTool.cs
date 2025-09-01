@@ -126,11 +126,13 @@ public class ManageSceneTool
                     error = "No response received from Unity within the timeout period"
                 };
             }
-            
+
+            Console.WriteLine("Raw Result: " + result.ToString());
+
             // Check if the response indicates success or error
-            string? status = result.Value<string?>("status");
+            bool? status = result.Value<bool?>("success");
             
-            if (status == "error")
+            if (status.HasValue && !status.Value)
             {
                 return new
                 {
@@ -138,9 +140,13 @@ public class ManageSceneTool
                     error = result.Value<string?>("error") ?? "Unknown error occurred"
                 };
             }
+
             
+
             // Extract the result
-            var resultData = result["result"];
+            var resultData = result["data"];
+
+
             
             // Handle different action responses
             switch (action)
@@ -149,7 +155,7 @@ public class ManageSceneTool
                     return new
                     {
                         success = true,
-                        message = resultData?.Value<string?>("message") ?? $"Scene '{name}' created successfully",
+                        message = result?.Value<string?>("message") ?? $"Scene '{name}' created successfully",
                         path = resultData?.Value<string?>("path")
                     };
                     
@@ -160,7 +166,7 @@ public class ManageSceneTool
                         message = resultData?.Value<string?>("message") ?? "Scene loaded successfully",
                         path = resultData?.Value<string?>("path"),
                         name = resultData?.Value<string?>("name"),
-                        buildIndex = resultData?.Value<int?>("buildIndex")
+                        buildIndex = resultData?.Value<int?>("buildIndex") ?? -1
                     };
                     
                 case "save":
@@ -173,11 +179,14 @@ public class ManageSceneTool
                     };
                     
                 case "get_hierarchy":
-                    var hierarchy = resultData?.ToObject<List<object>>() ?? new List<object>();
+
+                    var hierarchy = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+
+                        //resultData?.ToObject<List<object>>() ?? new List<object>();
                     return new
                     {
                         success = true,
-                        message = resultData?.Value<string?>("message") ?? "Retrieved scene hierarchy",
+                        message = result?.Value<string?>("message") ?? "Retrieved scene hierarchy",
                         hierarchy = hierarchy
                     };
                     
@@ -195,11 +204,13 @@ public class ManageSceneTool
                     };
                     
                 case "get_build_settings":
-                    var scenes = resultData?.ToObject<List<object>>() ?? new List<object>();
+                    var scenes = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+                    //resultData?.ToObject<List<object>>() ?? new List<object>();
+
                     return new
                     {
                         success = true,
-                        message = resultData?.Value<string?>("message") ?? "Retrieved build settings scenes",
+                        message = result?.Value<string?>("message") ?? "Retrieved build settings scenes",
                         scenes = scenes
                     };
                     

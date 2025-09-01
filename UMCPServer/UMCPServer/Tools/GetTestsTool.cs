@@ -1,7 +1,8 @@
-using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.ComponentModel;
 using UMCPServer.Services;
 
 namespace UMCPServer.Tools;
@@ -27,6 +28,14 @@ public class GetTestsTool
         public string TestAssembly = "";
         public string TestNamespace = "";
         public string ContainerScript = "";
+    }
+
+    public struct GetTestToolResponse
+    {
+        public bool success;
+        public string message;
+        public List<GetTestToolResult> tests;
+        public int count;
     }
 
 
@@ -81,7 +90,7 @@ public class GetTestsTool
             }
             
             // Send command to Unity
-            var response = await _unityConnection.SendCommandAsync("get_tests", parameters, cancellationToken);
+            var response = await _unityConnection.SendCommandAsync("get_tests", parameters, cancellationToken, true);
             
             if (response == null)
             {
@@ -107,17 +116,19 @@ public class GetTestsTool
             var result = response["result"];
             var message = response.Value<string>("message");
             var data = response.Value<JArray>("data");
-            
+
             // Convert test data to list
             List<object> tests = new List<object>();
             if (data != null)
             {
-                tests = data.Select(test => new GetTestToolResult
+                //Note : using dynamic to avoid issues with JsonConvert deserialization of nested objects within the MCP response
+                //(for some reason JsonConvert fails to deserialize the nested objects properly, but JObject works fine)
+                tests = data.Select(dataelem => new
                 {
-                    TestName = test.Value<string>("TestName") ?? "",
-                    TestAssembly = test.Value<string>("TestAssembly") ?? "",
-                    TestNamespace = test.Value<string>("TestNamespace") ?? "",
-                    ContainerScript = test.Value<string>("ContainerScript") ?? ""
+                    TestName = dataelem.Value<string>("TestName") ?? "",
+                    TestAssembly = dataelem.Value<string>("TestAssembly") ?? "",
+                    TestNamespace = dataelem.Value<string>("TestNamespace") ?? "",
+                    ContainerScript = dataelem.Value<string>("ContainerScript") ?? ""
                 }).Cast<object>().ToList();
             }
             

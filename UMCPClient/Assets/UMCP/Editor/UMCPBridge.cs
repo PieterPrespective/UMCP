@@ -9,6 +9,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using UMCP.Editor.Models;
+using UMCP.Editor.Serialization;
 using UMCP.Editor.Settings;
 using UMCP.Editor.Tools;
 using UnityEditor;
@@ -174,7 +175,7 @@ namespace UMCP.Editor
                                 type = "state_update",
                                 @params = GetCurrentState()
                             };
-                            var stateJson = JsonConvert.SerializeObject(initialState);
+                            var stateJson = JSONConversionUtility.SerializeObject(initialState);
                             var stateBytes = System.Text.Encoding.UTF8.GetBytes(stateJson);
                             var stream = client.GetStream();
                             await stream.WriteAsync(stateBytes, 0, stateBytes.Length);
@@ -283,7 +284,7 @@ namespace UMCP.Editor
                                 status = "error",
                                 error = "Empty command received"
                             };
-                            tcs.SetResult(JsonConvert.SerializeObject(emptyResponse));
+                            tcs.SetResult(JSONConversionUtility.SerializeObject(emptyResponse));
                             processedIds.Add(id);
                             continue;
                         }
@@ -299,7 +300,7 @@ namespace UMCP.Editor
                                 status = "success",
                                 result = new { message = "pong" }
                             };
-                            tcs.SetResult(JsonConvert.SerializeObject(pingResponse));
+                            tcs.SetResult(JSONConversionUtility.SerializeObject(pingResponse));
                             processedIds.Add(id);
                             continue;
                         }
@@ -313,7 +314,7 @@ namespace UMCP.Editor
                                 error = "Invalid JSON format",
                                 receivedText = commandText.Length > 50 ? commandText.Substring(0, 50) + "..." : commandText
                             };
-                            tcs.SetResult(JsonConvert.SerializeObject(invalidJsonResponse));
+                            tcs.SetResult(JSONConversionUtility.SerializeObject(invalidJsonResponse));
                             processedIds.Add(id);
                             continue;
                         }
@@ -328,7 +329,7 @@ namespace UMCP.Editor
                                 error = "Command deserialized to null",
                                 details = "The command was valid JSON but could not be deserialized to a Command object"
                             };
-                            tcs.SetResult(JsonConvert.SerializeObject(nullCommandResponse));
+                            tcs.SetResult(JSONConversionUtility.SerializeObject(nullCommandResponse));
                         }
                         else
                         {
@@ -358,7 +359,7 @@ namespace UMCP.Editor
                             commandType = "Unknown (error during processing)",
                             receivedText = commandText?.Length > 50 ? commandText.Substring(0, 50) + "..." : commandText
                         };
-                        string responseJson = JsonConvert.SerializeObject(response);
+                        string responseJson = JSONConversionUtility.SerializeObject(response);
                         tcs.SetResult(responseJson);
                     }
 
@@ -408,20 +409,20 @@ namespace UMCP.Editor
                         error = "Command type cannot be empty",
                         details = "A valid command type is required for processing"
                     };
-                    return JsonConvert.SerializeObject(errorResponse);
+                    return JSONConversionUtility.SerializeObject(errorResponse);
                 }
 
                 // Handle ping command for connection verification
                 if (command.type.Equals("ping", StringComparison.OrdinalIgnoreCase))
                 {
                     var pingResponse = new { status = "success", result = new { message = "pong" } };
-                    return JsonConvert.SerializeObject(pingResponse);
+                    return JSONConversionUtility.SerializeObject(pingResponse);
                 }
 
                 // Use JObject for parameters as the new handlers likely expect this
                 JObject paramsObject = command.@params ?? new JObject();
 
-                
+                Debug.Log($"Gotten Request for operation '{command.type}' with params '{paramsObject?.ToString() ?? "NULL"}'");
 
 
 
@@ -447,15 +448,15 @@ namespace UMCP.Editor
                     _ => throw new ArgumentException($"Unknown or unsupported command type: {command.type}")
                 };
 
+                // Standard success response format
+                Debug.Log($"Command '{command.type}' executed successfully.");
+                var response = new { status = "success", result };
+                string responseJson = JSONConversionUtility.SerializeObject(response);
+                Debug.Log($"Command '{command.type}' executed successfully with parameters: {responseJson}");
 
                 
 
-                // Standard success response format
-                var response = new { status = "success", result };
-                Debug.Log($"Command '{command.type}' executed successfully with parameters: {JsonConvert.SerializeObject(response)}");
-
-
-                return JsonConvert.SerializeObject(response);
+                return JSONConversionUtility.SerializeObject(response);
             }
             catch (Exception ex)
             {
@@ -471,7 +472,7 @@ namespace UMCP.Editor
                     stackTrace = ex.StackTrace, // Include stack trace for detailed debugging
                     paramsSummary = command?.@params != null ? GetParamsSummary(command.@params) : "No parameters" // Summarize parameters for context
                 };
-                return JsonConvert.SerializeObject(response);
+                return JSONConversionUtility.SerializeObject(response);
             }
         }
 
@@ -523,7 +524,7 @@ namespace UMCP.Editor
                         }
                     };
 
-                    string stateJson = JsonConvert.SerializeObject(stateChange);
+                    string stateJson = JSONConversionUtility.SerializeObject(stateChange);
                     
                     // Send to all connected state clients (on the separate port)
                     await SendStateToStateClients(stateJson);

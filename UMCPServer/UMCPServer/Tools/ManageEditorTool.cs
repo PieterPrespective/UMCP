@@ -24,10 +24,12 @@ public class ManageEditorTool
     }
 
     [McpServerTool]
-    [Description("Manage Unity Editor operations - control play mode, manage tags/layers, get editor state, and handle tool selection")]
+    //[Description("Manage Unity Editor operations - control play mode, manage tags/layers, get editor state, and handle tool selection")]
+    [Description("Manage Unity Editor operations - control play mode, manage tags/layers, get editor selection, and handle tool selection")]
     public async Task<object> ManageEditor(
         [Required]
-        [Description("Action to perform: 'play', 'pause', 'stop', 'get_state', 'get_windows', 'get_active_tool', 'get_selection', 'set_active_tool', 'add_tag', 'remove_tag', 'get_tags', 'add_layer', 'remove_layer', 'get_layers'")]
+        //[Description("Action to perform: 'play', 'pause', 'stop', 'get_state', 'get_windows', 'get_active_tool', 'get_selection', 'set_active_tool', 'add_tag', 'remove_tag', 'get_tags', 'add_layer', 'remove_layer', 'get_layers'")]
+        [Description("Action to perform: 'play', 'pause', 'stop', 'get_windows', 'get_active_tool', 'get_selection', 'set_active_tool', 'add_tag', 'remove_tag', 'get_tags', 'add_layer', 'remove_layer', 'get_layers'")]
         string action,
 
         [Description("Tag name for tag operations (required for add_tag, remove_tag)")]
@@ -62,7 +64,7 @@ public class ManageEditorTool
 
             // Validate action value
             var validActions = new[] { 
-                "play", "pause", "stop", "get_state", "get_windows", "get_active_tool", 
+                "play", "pause", "stop", /*"get_state",*/ "get_windows", "get_active_tool", 
                 "get_selection", "set_active_tool", "add_tag", "remove_tag", "get_tags", 
                 "add_layer", "remove_layer", "get_layers"
             };
@@ -113,29 +115,46 @@ public class ManageEditorTool
             }
 
             // Check if the response indicates success or error
-            string? status = result.Value<string?>("status");
+            //string? status = result.Value<string?>("status");
 
-            if (status == "error")
+            //if (status == "error")
+            //{
+            //    return new
+            //    {
+            //        success = false,
+            //        error = result.Value<string?>("error") ?? "Unknown error occurred"
+            //    };
+            //}
+            // Unity can return the response directly or wrapped in a result object
+            // Check if this is a direct response from Unity (has success/error at root)
+            var directSuccess = result.Value<bool?>("success");
+            var directError = result.Value<string>("error");
+
+            // If we have a direct error response
+            if (directSuccess == false && !string.IsNullOrEmpty(directError))
             {
                 return new
                 {
                     success = false,
-                    error = result.Value<string?>("error") ?? "Unknown error occurred"
+                    error = directError
                 };
             }
 
+
+            //Console.WriteLine("before result interpretation:" + result.ToString());
+
             // Extract the result
-            var resultData = result["result"];
+            var resultData = result["data"];
 
             // Handle different action responses
             return action switch
             {
                 "play" or "pause" or "stop" => HandlePlayModeResponse(resultData),
-                "get_state" => HandleGetStateResponse(resultData),
+                //"get_state" => HandleGetStateResponse(resultData),
                 "get_windows" => HandleGetWindowsResponse(resultData),
                 "get_active_tool" => HandleGetActiveToolResponse(resultData),
                 "get_selection" => HandleGetSelectionResponse(resultData),
-                "set_active_tool" => HandleSetActiveToolResponse(resultData),
+                "set_active_tool" => HandleSetActiveToolResponse(result), //Note: set_active_tool returns info at root level
                 "add_tag" or "remove_tag" => HandleTagResponse(resultData, action),
                 "get_tags" => HandleGetTagsResponse(resultData),
                 "add_layer" or "remove_layer" => HandleLayerResponse(resultData, action),
@@ -256,69 +275,100 @@ public class ManageEditorTool
 
     #region Response Handlers
 
-    private static object HandlePlayModeResponse(JToken? resultData)
+    private static dynamic HandlePlayModeResponse(JToken? resultData)
     {
+        var state = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
         return new
         {
             success = true,
             message = resultData?.Value<string?>("message") ?? "Play mode operation completed successfully",
-            editorState = resultData
+            editorState = state
         };
     }
 
-    private static object HandleGetStateResponse(JToken? resultData)
+    //private static dynamic HandleGetStateResponse(JToken? resultData)
+    //{
+    //    var state = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+    //    return new
+    //    {
+    //        success = true,
+    //        message = "Retrieved Unity Editor state successfully",
+    //        editorState = resultData
+    //    };
+    //}
+
+    /// <summary>
+    /// Handles the response for getting open editor windows in Unity Editor.
+    /// </summary>
+    /// <param name="resultData"></param>
+    /// <returns></returns>
+    private static dynamic HandleGetWindowsResponse(JToken? resultData)
     {
+        var windows = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+        JArray windowsArray = JArray.FromObject(windows);
         return new
         {
             success = true,
-            message = "Retrieved Unity Editor state successfully",
-            editorState = resultData
+            message = $"Found {windowsArray.Count} open editor window(s)",
+            windows = windows,
         };
     }
 
-    private static object HandleGetWindowsResponse(JToken? resultData)
+    /// <summary>
+    /// Handles the response for getting the current selection in Unity Editor.
+    /// </summary>
+    /// <param name="resultData">JToken with result data</param>
+    /// <returns></returns>
+    private static dynamic HandleGetSelectionResponse(JToken? resultData)
     {
-        var windows = resultData?.ToObject<List<object>>() ?? new List<object>();
-
-        return new
-        {
-            success = true,
-            message = $"Found {windows.Count} open editor window(s)",
-            windows = windows
-        };
-    }
-
-    private static object HandleGetActiveToolResponse(JToken? resultData)
-    {
-        return new
-        {
-            success = true,
-            message = "Retrieved active tool information successfully",
-            toolInfo = resultData
-        };
-    }
-
-    private static object HandleGetSelectionResponse(JToken? resultData)
-    {
+        var selection = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
         return new
         {
             success = true,
             message = "Retrieved current selection successfully",
-            selection = resultData
+            selection = selection
         };
     }
 
-    private static object HandleSetActiveToolResponse(JToken? resultData)
+    /// <summary>
+    /// Handles the response for setting the active tool in Unity Editor.
+    /// </summary>
+    /// <param name="resultDataBase">baselevel result data from which info is extracted</param>
+    /// <returns></returns>
+    private static dynamic HandleSetActiveToolResponse(JToken? resultDataBase)
     {
         return new
         {
             success = true,
-            message = resultData?.Value<string?>("message") ?? "Active tool set successfully",
-            toolInfo = resultData
+            message = resultDataBase?.Value<string?>("message") ?? "Active tool set successfully",
         };
     }
 
-    private static object HandleTagResponse(JToken? resultData, string action)
+    /// <summary>
+    /// Turns the current active tool from Unity Editor.    
+    /// </summary>
+    /// <param name="resultData">JToken with result data</param>
+    /// <returns></returns>
+    private static dynamic HandleGetActiveToolResponse(JToken? resultData)
+    {
+        var toolInfo = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+        return new
+        {
+            success = true,
+            message = "Retrieved active tool information successfully",
+            toolInfo = toolInfo
+        };
+    }
+
+
+
+    /// <summary>
+    /// turns the response for adding or removing tags in Unity Editor.
+    /// </summary>
+    /// <param name="resultData">JToken with result data</param>
+    /// <param name="action">action taken</param>
+    /// <returns></returns>
+    private static dynamic HandleTagResponse(JToken? resultData, string action)
     {
         var actionWord = action == "add_tag" ? "added" : "removed";
         return new
@@ -329,19 +379,32 @@ public class ManageEditorTool
         };
     }
 
-    private static object HandleGetTagsResponse(JToken? resultData)
+    /// <summary>
+    /// Returns the current tags from Unity Editor.
+    /// </summary>
+    /// <param name="resultData">JToken with result data</param>
+    /// <returns></returns>
+    private static dynamic HandleGetTagsResponse(JToken? resultData)
     {
-        var tags = resultData?.ToObject<List<string>>() ?? new List<string>();
-
+        var tags = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+        JArray tagsJArray = JArray.FromObject(tags);
         return new
         {
             success = true,
-            message = $"Retrieved {tags.Count} tag(s)",
+            message = $"Retrieved {tagsJArray.Count} tag(s)",
             tags = tags
         };
     }
 
-    private static object HandleLayerResponse(JToken? resultData, string action)
+
+
+    /// <summary>
+    /// Returns the response for adding or removing layers in Unity Editor.
+    /// </summary>
+    /// <param name="resultData">JToken with result data</param>
+    /// <param name="action">action taken</param>
+    /// <returns></returns>
+    private static dynamic HandleLayerResponse(JToken? resultData, string action)
     {
         var actionWord = action == "add_layer" ? "added" : "removed";
         return new
@@ -352,15 +415,22 @@ public class ManageEditorTool
         };
     }
 
-    private static object HandleGetLayersResponse(JToken? resultData)
+    /// <summary>
+    /// Returns the current layers from Unity Editor.
+    /// </summary>
+    /// <param name="resultData">JToken with layer data</param>
+    /// <returns></returns>
+    private static dynamic HandleGetLayersResponse(JToken? resultData)
     {
+        var layers = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
         return new
         {
             success = true,
             message = "Retrieved current layers successfully",
-            layers = resultData
+            layers = layers
         };
     }
+
 
     #endregion
 }

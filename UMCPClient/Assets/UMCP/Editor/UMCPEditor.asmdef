@@ -2,7 +2,8 @@
     "name": "UMCP.Editor",
     "rootNamespace": "UMCP.Editor",
     "references": [
-        "GUID:478a2357cc57436488a56e564b08d223"
+        "GUID:478a2357cc57436488a56e564b08d223",
+        "GUID:f06555f75b070af458a003d92f9efb00"
     ],
     "includePlatforms": [
         "Editor"

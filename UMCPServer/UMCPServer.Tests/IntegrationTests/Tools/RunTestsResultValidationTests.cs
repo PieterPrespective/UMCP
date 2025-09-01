@@ -5,7 +5,6 @@ using NUnit.Framework;
 using System.Collections;
 using UMCPServer.Models;
 using UMCPServer.Services;
-using UMCPServer.Tests.IntegrationTests.UnityBridge;
 using UMCPServer.Tools;
 using static UMCPServer.Tools.GetTestsTool;
 

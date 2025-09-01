@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Newtonsoft.Json.Linq;
@@ -33,8 +34,11 @@ public class ManageGameObjectTool
         [Description("Target GameObject identifier - can be name (string), path (string), or instanceID (integer). Used for find, modify, delete, and component operations.")]
         object? target = null,
 
-        [Description("Search method for finding GameObjects: 'name', 'path', 'tag', 'type', or 'auto' (default)")]
-        string searchMethod = "auto",
+        [Description("Search method for finding GameObjects: 'by_id', 'by_name', 'by_path', 'by_tag','by_layer','by_component' or 'by_id_or_name_or_path' (default)")]
+        string searchMethod = "by_id_or_name_or_path",
+
+        [Description("Required for search function : Whether to return all matches, or just one - default is return just one (i.e. false)")]
+        bool? findAll = false,
 
         [Description("Name for the GameObject (required for create, optional for modify)")]
         string? name = null,
@@ -51,8 +55,8 @@ public class ManageGameObjectTool
         [Description("Tag to assign to the GameObject (optional for create/modify/find)")]
         string? tag = null,
 
-        [Description("Layer to assign to the GameObject (optional for create/modify/find)")]
-        int? layer = null,
+        [Description("Layer name to assign to the GameObject (optional for create/modify/find)")]
+        string? layer = null,
 
         [Description("Active state of the GameObject (optional for modify)")]
         bool? isActive = null,
@@ -139,10 +143,15 @@ public class ManageGameObjectTool
             // Prepare parameters for Unity
             var parameters = BuildUnityParameters(action, target, searchMethod, name, prefabPath, primitiveType,
                 parent, tag, layer, isActive, transform, componentName, componentProperties, componentType,
-                maxResults, saveAsPrefab, savePrefabPath);
+                maxResults, saveAsPrefab, savePrefabPath, findAll);
+
+            //Console.WriteLine("Parameters to Unity: " + parameters.ToString());
 
             // Send command to Unity
             var result = await _unityConnection.SendCommandAsync("manage_gameobject", parameters, cancellationToken);
+
+            Console.WriteLine("Raw GameObject Result from Unity: " + (result?.ToString() ?? "NULL"));
+
 
             if (result == null)
             {
@@ -154,9 +163,9 @@ public class ManageGameObjectTool
             }
 
             // Check if the response indicates success or error
-            string? status = result.Value<string?>("status");
+            bool success = result.Value<bool?>("success") ?? false;
 
-            if (status == "error")
+            if (!success)
             {
                 return new
                 {
@@ -166,19 +175,19 @@ public class ManageGameObjectTool
             }
 
             // Extract the result
-            var resultData = result["result"];
+            var resultData = result["data"];
 
             // Handle different action responses
             return action switch
             {
                 "create" => HandleCreateResponse(resultData),
                 "modify" => HandleModifyResponse(resultData),
-                "delete" => HandleDeleteResponse(resultData),
+                "delete" => HandleDeleteResponse(result, resultData),
                 "find" => HandleFindResponse(resultData),
                 "get_components" => HandleGetComponentsResponse(resultData),
-                "add_component" => HandleAddComponentResponse(resultData),
+                "add_component" => HandleAddComponentResponse(result, resultData),
                 "remove_component" => HandleRemoveComponentResponse(resultData),
-                "set_component_property" => HandleSetComponentPropertyResponse(resultData),
+                "set_component_property" => HandleSetComponentPropertyResponse(result, resultData),
                 _ => new
                 {
                     success = true,
@@ -357,9 +366,9 @@ public class ManageGameObjectTool
     /// </summary>
     private static JObject BuildUnityParameters(
         string action, object? target, string searchMethod, string? name, string? prefabPath, string? primitiveType,
-        object? parent, string? tag, int? layer, bool? isActive, object? transform,
+        object? parent, string? tag, string? layer, bool? isActive, object? transform,
         string? componentName, object? componentProperties, string? componentType,
-        int maxResults, bool saveAsPrefab, string? savePrefabPath)
+        int maxResults, bool saveAsPrefab, string? savePrefabPath, bool? findAll)
     {
         var parameters = new JObject
         {
@@ -373,6 +382,11 @@ public class ManageGameObjectTool
                 parameters["target"] = intTarget;
             else
                 parameters["target"] = target.ToString();
+        }
+
+        if(findAll.HasValue)
+        {
+            parameters["findAll"] = findAll.Value;
         }
 
         parameters["searchMethod"] = searchMethod;
@@ -398,15 +412,87 @@ public class ManageGameObjectTool
         if (!string.IsNullOrWhiteSpace(tag))
             parameters["tag"] = tag;
 
-        if (layer.HasValue)
-            parameters["layer"] = layer.Value;
+        if (layer != null)
+            parameters["layer"] = layer;
 
         if (isActive.HasValue)
             parameters["isActive"] = isActive.Value;
 
         if (transform != null)
         {
+            Console.WriteLine($"Transform object type: {transform.GetType().Name}, value: {transform.ToString()}");
+
+            //CASE : the LLM has given the component value as a JSON string - for some reason this is directly interpreted as a JsonElement by c#?
+            if (transform is JsonElement elem)
+            {
+                // Convert JsonElement to appropriate .NET type
+                object? converted = elem.ValueKind switch
+                {
+                    JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, object>>(elem.GetRawText()),
+                    JsonValueKind.Array => JsonSerializer.Deserialize<List<object>>(elem.GetRawText()),
+                    JsonValueKind.String => elem.GetString(),
+                    JsonValueKind.Number => elem.GetInt32(), // or GetDouble() based on expected type
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    _ => null
+                };
+                transform = converted;
+            }
+            else if (transform is JToken token)
+            {
+                transform = SerializationUtility.ConvertJTokenToObjectSmart(token);
+            }
+
+            
+            //parameters["transform"] = transform.GetType().Name + " == " + transform.ToString();
+
             parameters["transform"] = ConvertToJToken(transform);
+
+            //CASE : the LLM has given the component value as a JSON string
+            if(parameters["transform"] is JValue || parameters["transform"].Type == JTokenType.String)
+            {
+                parameters["transform"] = JObject.Parse((string)parameters["transform"]);
+            }
+
+            //Console.WriteLine($"Position after conversion: {parameters["transform"]?["position"]?.Type.ToString() ?? "NULL"}");
+
+            if (parameters["transform"]?["position"] != null && !(parameters["transform"]?["position"] is JArray))
+            {
+                
+                //Console.WriteLine($"position not formatted as JArray, so likely set as object");
+                if (parameters["transform"]?["position"] is JObject posObj)
+                {
+                    float x = posObj.Value<float?>("x") ?? 0f;
+                    float y = posObj.Value<float?>("y") ?? 0f;
+                    float z = posObj.Value<float?>("z") ?? 0f;
+                    parameters["transform"]["position"] = new JArray(x, y, z);
+                }
+            }
+
+            if(parameters["transform"]?["rotation"] != null && !(parameters["transform"]?["rotation"] is JArray))
+            {
+                //Console.WriteLine($"rotation not formatted as JArray, so likely set as object");
+                if (parameters["transform"]?["rotation"] is JObject rotObj)
+                {
+                    float x = rotObj.Value<float?>("x") ?? 0f;
+                    float y = rotObj.Value<float?>("y") ?? 0f;
+                    float z = rotObj.Value<float?>("z") ?? 0f;
+                    parameters["transform"]["rotation"] = new JArray(x, y, z);
+                }
+            }
+
+            if(parameters["transform"]?["scale"] != null && !(parameters["transform"]?["scale"] is JArray))
+            {
+                //Console.WriteLine($"scale not formatted as JArray, so likely set as object");
+                if (parameters["transform"]?["scale"] is JObject rotObj)
+                {
+                    float x = rotObj.Value<float?>("x") ?? 0f;
+                    float y = rotObj.Value<float?>("y") ?? 0f;
+                    float z = rotObj.Value<float?>("z") ?? 0f;
+                    parameters["transform"]["scale"] = new JArray(x, y, z);
+                }
+            }
+            
         }
 
         if (!string.IsNullOrWhiteSpace(componentName))
@@ -414,7 +500,44 @@ public class ManageGameObjectTool
 
         if (componentProperties != null)
         {
+
+            //CASE : the LLM has given the component value as a JSON string - for some reason this is directly interpreted as a JsonElement by c#?
+            if (componentProperties is JsonElement elem)
+            {
+                // Convert JsonElement to appropriate .NET type
+                object? converted = elem.ValueKind switch
+                {
+                    JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, object>>(elem.GetRawText()),
+                    JsonValueKind.Array => JsonSerializer.Deserialize<List<object>>(elem.GetRawText()),
+                    JsonValueKind.String => elem.GetString(),
+                    JsonValueKind.Number => elem.GetInt32(), // or GetDouble() based on expected type
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    _ => null
+                };
+                componentProperties = converted;
+            }
+            else if (transform is JToken token)
+            {
+                componentProperties = SerializationUtility.ConvertJTokenToObjectSmart(token);
+            }
+
+            //parameters["transform"] = transform.GetType().Name + " == " + transform.ToString();
+
             parameters["componentProperties"] = ConvertToJToken(componentProperties);
+
+            //CASE : the LLM has given the component value as a JSON string
+            if (parameters["componentProperties"] is JValue)
+            {
+                parameters["componentProperties"] = JObject.Parse((string)parameters["componentProperties"]);
+            }
+
+
+
+
+
+
+            //parameters["componentProperties"] = ConvertToJToken(componentProperties);
         }
 
         if (!string.IsNullOrWhiteSpace(componentType))
@@ -455,70 +578,77 @@ public class ManageGameObjectTool
 
     #region Response Handlers
 
-    private static object HandleCreateResponse(JToken? resultData)
+    private static dynamic HandleCreateResponse(JToken? resultData)
     {
+        //Console.WriteLine("Raw Rsultdata: " +  resultData.ToString());
+
         return new
         {
             success = true,
             message = resultData?.Value<string?>("message") ?? "GameObject created successfully",
-            gameObjectData = resultData
+            gameObjectData = SerializationUtility.ConvertJTokenToObjectSmart(resultData!)
         };
     }
 
-    private static object HandleModifyResponse(JToken? resultData)
+    private static dynamic HandleModifyResponse(JToken? resultData)
     {
         return new
         {
             success = true,
             message = resultData?.Value<string?>("message") ?? "GameObject modified successfully",
-            gameObjectData = resultData
+            gameObjectData = SerializationUtility.ConvertJTokenToObjectSmart(resultData!)
         };
     }
 
-    private static object HandleDeleteResponse(JToken? resultData)
+    private static dynamic HandleDeleteResponse(JToken? baseData, JToken? resultData)
     {
         return new
         {
             success = true,
-            message = resultData?.Value<string?>("message") ?? "GameObject deleted successfully"
+            message = baseData?.Value<string?>("message") ?? "GameObject deleted successfully",
+            data = SerializationUtility.ConvertJTokenToObjectSmart(resultData!)
         };
     }
 
-    private static object HandleFindResponse(JToken? resultData)
+    private static dynamic HandleFindResponse(JToken? resultData)
     {
-        var gameObjects = resultData?.ToObject<List<object>>() ?? new List<object>();
+        var gameObjects = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+        int noOfGO = resultData?.ToObject<List<object>>()?.Count ?? 0;
 
         return new
         {
             success = true,
-            message = $"Found {gameObjects.Count} GameObject(s)",
+            message = $"Found {noOfGO} GameObject(s)",
             gameObjects = gameObjects
         };
     }
 
-    private static object HandleGetComponentsResponse(JToken? resultData)
+    private static dynamic HandleGetComponentsResponse(JToken? resultData)
     {
-        var components = resultData?.ToObject<List<object>>() ?? new List<object>();
+        var components = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+        int componentCount = resultData?.ToObject<List<object>>()?.Count ?? 0;
 
         return new
         {
             success = true,
-            message = $"Found {components.Count} component(s)",
+            message = $"Found {componentCount} component(s)",
             components = components
         };
     }
 
-    private static object HandleAddComponentResponse(JToken? resultData)
+    private static dynamic HandleAddComponentResponse(JToken? baseData, JToken? resultData)
     {
+        var gameObject = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+
         return new
         {
             success = true,
-            message = resultData?.Value<string?>("message") ?? "Component added successfully",
-            componentData = resultData
+            message = baseData?.Value<string?>("message") ?? "Component added successfully",
+            gameObjectData = gameObject
         };
     }
 
-    private static object HandleRemoveComponentResponse(JToken? resultData)
+    private static dynamic HandleRemoveComponentResponse(JToken? resultData)
     {
         return new
         {
@@ -527,13 +657,15 @@ public class ManageGameObjectTool
         };
     }
 
-    private static object HandleSetComponentPropertyResponse(JToken? resultData)
+    private static dynamic HandleSetComponentPropertyResponse(JToken? baseData, JToken? resultData)
     {
+        var gameObject = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+
         return new
         {
             success = true,
-            message = resultData?.Value<string?>("message") ?? "Component property set successfully",
-            componentData = resultData
+            message = baseData?.Value<string?>("message") ?? "Component property set successfully",
+            gameObjectData = gameObject
         };
     }
 

@@ -1,9 +1,10 @@
-using UnityEngine;
-using UnityEditor;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic; // Added for HashSet
 using UMCP.Editor.Helpers; // For Response class
+using UnityEditor;
+using UnityEngine;
+using static UMCP.Editor.Tools.MenuItemScanner;
 
 namespace UMCP.Editor.Tools
 {
@@ -34,12 +35,22 @@ namespace UMCP.Editor.Tools
                     case "execute":
                         return ExecuteItem(@params);
                     case "get_available_menus":
+
+                        string filter = @params["menu_path"]?.ToString();
+                        List<MenuItemInfo> menuItemInfos = MenuItemScanner.GetAllMenuItems(filter);
+
+                        string responseMessage = string.IsNullOrEmpty(filter) ?
+                            $"{menuItemInfos.Count} menu items found." :
+                            $"{menuItemInfos.Count} menu items found matching filter '{filter}'.";
+
+                        return Response.Success(responseMessage, menuItemInfos);
+
                         // Getting a comprehensive list of *all* menu items dynamically is very difficult
                         // and often requires complex reflection or maintaining a manual list.
                         // Returning a placeholder/acknowledgement for now.
-                        Debug.LogWarning("[ExecuteMenuItem] 'get_available_menus' action is not fully implemented. Dynamically listing all menu items is complex.");
+                        //Debug.LogWarning("[ExecuteMenuItem] 'get_available_menus' action is not fully implemented. Dynamically listing all menu items is complex.");
                         // Returning an empty list as per the refactor plan's requirements.
-                        return Response.Success("'get_available_menus' action is not fully implemented. Returning empty list.", new List<string>());
+                        //return Response.Success("'get_available_menus' action is not fully implemented. Returning empty list.", new List<string>());
                         // TODO: Consider implementing a basic list of common/known menu items or exploring reflection techniques if this feature becomes critical.
                     default:
                         return Response.Error($"Unknown action: '{action}'. Valid actions are 'execute', 'get_available_menus'.");
@@ -82,7 +93,7 @@ namespace UMCP.Editor.Tools
             try
             {
                 // Attempt to execute the menu item on the main thread using delayCall for safety.
-                EditorApplication.delayCall += () => {
+                EditorDelayCallService.Enqueue(() => {
                     try {
                         bool executed = EditorApplication.ExecuteMenuItem(menuPath);
                         // Log potential failure inside the delayed call.
@@ -92,10 +103,8 @@ namespace UMCP.Editor.Tools
                     } catch (Exception delayEx) {
                          Debug.LogError($"[ExecuteMenuItem] Exception during delayed execution of '{menuPath}': {delayEx}");
                     }
-                };
-
-                // Report attempt immediately, as execution is delayed.
-                 return Response.Success($"Attempted to execute menu item: '{menuPath}'. Check Unity logs for confirmation or errors.");
+                });
+                return Response.Success($"Attempted to execute menu item: '{menuPath}'. Check Unity logs for confirmation or errors.");
             }
             catch (Exception e)
             {

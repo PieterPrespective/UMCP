@@ -89,7 +89,7 @@ public class ForceUpdateEditorTool
             var commandResult = result["data"];
             string? action = commandResult?.Value<string>("action");
             
-            _logger.LogInformation("Force update command executed successfully. Action: {Action}", action ?? "unknown");
+            _logger.LogInformation("Force update command executed successfully. Action: {Action}, current state: {state}", action ?? "unknown", _stateConnection.CurrentUnityState?.ToString() ?? "NO_STATE");
             
             // Now wait for Unity to reach EditMode_Running state
             var startTime = DateTime.UtcNow;
@@ -100,6 +100,8 @@ public class ForceUpdateEditorTool
             
             var tcs = new TaskCompletionSource<JObject>();
             
+
+
             // Subscribe to state changes
             void OnStateChanged(JObject newState)
             {
@@ -130,6 +132,7 @@ public class ForceUpdateEditorTool
                 
                 while (retryCount < maxRetries)
                 {
+                    _logger.LogInformation("rety active state check {RetryCount}/{MaxRetries} = {state}", retryCount + 1, maxRetries, _stateConnection.CurrentUnityState?.ToString() ?? "NO_STATE");
                     var currentState = _stateConnection.CurrentUnityState;
                     if (currentState != null && IsEditModeRunning(
                         currentState.Value<string>("runmode"), 

@@ -2,7 +2,9 @@
     "name": "UMCP.Tests.Editor",
     "rootNamespace": "UMCP.Tests.Editor",
     "references": [
-        "UMCP.Editor"
+        "UMCP.Editor",
+        "UMCP.Tests.Player",
+        "Unity.Timeline"
     ],
     "includePlatforms": [
         "Editor"

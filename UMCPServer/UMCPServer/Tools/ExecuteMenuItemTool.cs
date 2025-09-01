@@ -25,7 +25,7 @@ public class ExecuteMenuItemTool
         [Description("The action to perform. Options: 'execute' (default), 'get_available_menus'")]
         string? action = "execute",
         
-        [Description("The menu item path to execute (e.g., 'GameObject/Create Empty', 'Window/General/Console'). Required for 'execute' action.")]
+        [Description("The menu item path to execute (e.g., 'GameObject/Create Empty', 'Window/General/Console'). Required for 'execute' action. Used as filter for the 'get_available_menus' action (only menuitems containing filter string will be returned)")]
         string? menuPath = null,
         
         [Description("Optional alias for common menu items (not implemented yet)")]
@@ -78,6 +78,8 @@ public class ExecuteMenuItemTool
             // Send command to Unity
             var result = await _unityConnection.SendCommandAsync("execute_menu_item", parameters, cancellationToken);
             
+            //Console.WriteLine("ExecuteMenuItem result: " + result.ToString());
+
             if (result == null)
             {
                 return new
@@ -100,16 +102,17 @@ public class ExecuteMenuItemTool
             }
             
             // Extract the result
-            var resultData = result["result"];
+            var resultData = result["data"];
             
             if (action == "get_available_menus")
             {
                 // For get_available_menus, return the list of menu items
-                var menuItems = resultData?.ToObject<List<string>>() ?? new List<string>();
+                var menuItems = SerializationUtility.ConvertJTokenToObjectSmart(resultData!);
+                //var menuItems = resultData?.ToObject<List<string>>() ?? new List<string>();
                 return new
                 {
                     success = true,
-                    message = resultData?.Value<string?>("message") ?? "Available menu items retrieved",
+                    message = result?.Value<string?>("message") ?? "Available menu items retrieved",
                     menuItems = menuItems
                 };
             }
@@ -119,7 +122,7 @@ public class ExecuteMenuItemTool
                 return new
                 {
                     success = true,
-                    message = resultData?.ToString() ?? $"Menu item '{menuPath}' execution attempted"
+                    message = result?.Value<string?>("message") ?? $"Menu item '{menuPath}' execution attempted"
                 };
             }
         }
