@@ -76,7 +76,7 @@ public class GetUnityClientStateTool
                     canModifyProjectFiles = cachedState.Value<bool?>("canModifyProjectFiles"),
                     isEditorResponsive = cachedState.Value<bool?>("isEditorResponsive"),
                     timestamp = cachedState.Value<string>("timestamp"),
-                    lastChange = cachedState["lastChange"]
+                    lastChange = SerializationUtility.ConvertJTokenToObjectSmart(cachedState["lastChange"]!)
                 };
             }
             

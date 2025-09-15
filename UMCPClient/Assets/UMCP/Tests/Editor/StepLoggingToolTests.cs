@@ -101,7 +101,7 @@ namespace UMCP.Tests.Editor
         #region MarkStartOfNewStep Direct Handler Tests
 
         [Test]
-        public void MarkStartOfNewStep_DirectHandler_ValidStepName_Success()
+        public async Task MarkStartOfNewStep_DirectHandler_ValidStepName_Success()
         {
             // Arrange
             string testStepName = "TestStep_" + System.Guid.NewGuid().ToString("N")[0..8];
@@ -111,7 +111,7 @@ namespace UMCP.Tests.Editor
             };
 
             // Act
-            object result = MarkStartOfNewStep.HandleCommand(parameters);
+            object result = await MarkStartOfNewStep.HandleCommand(parameters);
 
             // Assert
             Assert.That(result, Is.Not.Null, "Handler should return a result");
@@ -138,7 +138,7 @@ namespace UMCP.Tests.Editor
         }
 
         [Test]
-        public void MarkStartOfNewStep_DirectHandler_EmptyStepName_ReturnsError()
+        public async Task MarkStartOfNewStep_DirectHandler_EmptyStepName_ReturnsError()
         {
             // Arrange
             JObject parameters = new JObject
@@ -147,7 +147,7 @@ namespace UMCP.Tests.Editor
             };
 
             // Act
-            object result = MarkStartOfNewStep.HandleCommand(parameters);
+            object result = await MarkStartOfNewStep.HandleCommand(parameters);
 
             // Assert
             Assert.That(result, Is.Not.Null, "Handler should return a result");
@@ -162,7 +162,7 @@ namespace UMCP.Tests.Editor
         }
 
         [Test]
-        public void MarkStartOfNewStep_DirectHandler_NullStepName_ReturnsError()
+        public async Task MarkStartOfNewStep_DirectHandler_NullStepName_ReturnsError()
         {
             // Arrange
             JObject parameters = new JObject
@@ -171,7 +171,7 @@ namespace UMCP.Tests.Editor
             };
 
             // Act
-            object result = MarkStartOfNewStep.HandleCommand(parameters);
+            object result = await MarkStartOfNewStep.HandleCommand(parameters);
 
             // Assert
             Assert.That(result, Is.Not.Null, "Handler should return a result");
@@ -184,13 +184,13 @@ namespace UMCP.Tests.Editor
         }
 
         [Test]
-        public void MarkStartOfNewStep_DirectHandler_MissingStepNameParameter_ReturnsError()
+        public async Task MarkStartOfNewStep_DirectHandler_MissingStepNameParameter_ReturnsError()
         {
             // Arrange
             JObject parameters = new JObject(); // No stepName parameter
 
             // Act
-            object result = MarkStartOfNewStep.HandleCommand(parameters);
+            object result = await MarkStartOfNewStep.HandleCommand(parameters);
 
             // Assert
             Assert.That(result, Is.Not.Null, "Handler should return a result");
@@ -239,7 +239,7 @@ namespace UMCP.Tests.Editor
         #region RequestStepLogs Direct Handler Tests
 
         [Test]
-        public void RequestStepLogs_DirectHandler_NonExistentStep_ReturnsError()
+        public async Task RequestStepLogs_DirectHandler_NonExistentStep_ReturnsError()
         {
             // Arrange
             string nonExistentStepName = "NonExistentStep_" + System.Guid.NewGuid().ToString("N")[0..8];
@@ -249,7 +249,7 @@ namespace UMCP.Tests.Editor
             };
 
             // Act
-            object result = RequestStepLogs.HandleCommand(parameters);
+            object result = await RequestStepLogs.HandleCommand(parameters);
 
             // Assert
             Assert.That(result, Is.Not.Null, "Handler should return a result");
@@ -266,7 +266,7 @@ namespace UMCP.Tests.Editor
         }
 
         [Test]
-        public void RequestStepLogs_DirectHandler_EmptyStepName_ReturnsError()
+        public async Task RequestStepLogs_DirectHandler_EmptyStepName_ReturnsError()
         {
             // Arrange
             JObject parameters = new JObject
@@ -275,7 +275,7 @@ namespace UMCP.Tests.Editor
             };
 
             // Act
-            object result = RequestStepLogs.HandleCommand(parameters);
+            object result = await RequestStepLogs.HandleCommand(parameters);
 
             // Assert
             Assert.That(result, Is.Not.Null, "Handler should return a result");
@@ -289,13 +289,13 @@ namespace UMCP.Tests.Editor
         }
 
         [Test]
-        public void RequestStepLogs_DirectHandler_MissingStepNameParameter_ReturnsError()
+        public async Task RequestStepLogs_DirectHandler_MissingStepNameParameter_ReturnsError()
         {
             // Arrange
             JObject parameters = new JObject(); // No stepName parameter
 
             // Act
-            object result = RequestStepLogs.HandleCommand(parameters);
+            object result = await RequestStepLogs.HandleCommand(parameters);
 
             // Assert
             Assert.That(result, Is.Not.Null, "Handler should return a result");
@@ -323,7 +323,7 @@ namespace UMCP.Tests.Editor
                 ["stepName"] = testStepName
             };
 
-            object markResult = MarkStartOfNewStep.HandleCommand(markParameters);
+            object markResult = MarkStartOfNewStep.HandleCommandSynchronous(markParameters);
             
             // Verify mark was successful
             string markResultJson = JsonConvert.SerializeObject(markResult);
@@ -341,7 +341,7 @@ namespace UMCP.Tests.Editor
                 ["includeStacktrace"] = true
             };
 
-            object requestResult = RequestStepLogs.HandleCommand(requestParameters);
+            object requestResult = RequestStepLogs.HandleCommandSynchronous(requestParameters);
 
             // Assert
             Assert.That(requestResult, Is.Not.Null, "Request should return a result");
@@ -371,13 +371,13 @@ namespace UMCP.Tests.Editor
         }
 
         [Test]
-        public void Integration_DirectHandler_RequestLogsWithPlainFormat_Success()
+        public async Task Integration_DirectHandler_RequestLogsWithPlainFormat_Success()
         {
             // Arrange
             string testStepName = "PlainFormatTest_" + System.Guid.NewGuid().ToString("N")[0..8];
 
             // Mark step and generate logs
-            MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = testStepName });
+            await MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = testStepName });
             GenerateTestLogEntries($"PlainFormat_{testStepName}");
 
             // Request logs in plain format
@@ -388,7 +388,7 @@ namespace UMCP.Tests.Editor
                 ["includeStacktrace"] = false
             };
 
-            object requestResult = RequestStepLogs.HandleCommand(requestParameters);
+            object requestResult = await RequestStepLogs.HandleCommand(requestParameters);
 
             // Assert
             string requestResultJson = JsonConvert.SerializeObject(requestResult);
@@ -615,7 +615,7 @@ namespace UMCP.Tests.Editor
             };
 
             // Act
-            object result = MarkStartOfNewStep.HandleCommand(parameters);
+            object result = MarkStartOfNewStep.HandleCommandSynchronous(parameters);
 
             // Assert
             string resultJson = JsonConvert.SerializeObject(result);
@@ -628,7 +628,7 @@ namespace UMCP.Tests.Editor
         }
 
         [Test]
-        public void EdgeCase_RequestStepLogs_MultipleStepsWithSameName_FindsMostRecent()
+        public async Task EdgeCase_RequestStepLogs_MultipleStepsWithSameName_FindsMostRecent()
         {
             // Note: This test works around a known bug in RequestStepLogs.cs where it checks
             // logsResponse.status instead of logsResponse.success
@@ -637,17 +637,17 @@ namespace UMCP.Tests.Editor
             string duplicateStepName = "DuplicateStep_" + System.Guid.NewGuid().ToString("N")[0..8];
 
             // Clear console first to ensure clean test environment
-            ReadConsole.HandleCommand(new JObject { ["action"] = "clear" });
+            await ReadConsole.HandleCommand(new JObject { ["action"] = "clear" });
 
             // Mark the same step twice
-            object firstMarkResult = MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = duplicateStepName });
+            object firstMarkResult = await MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = duplicateStepName });
             Debug.Log($"First mark result: {JsonConvert.SerializeObject(firstMarkResult)}");
             
             GenerateTestLogEntries("FirstOccurrence");
             
             System.Threading.Thread.Sleep(100); // Small delay to ensure different timestamps
             
-            object secondMarkResult = MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = duplicateStepName });
+            object secondMarkResult = await MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = duplicateStepName });
             Debug.Log($"Second mark result: {JsonConvert.SerializeObject(secondMarkResult)}");
             
             GenerateTestLogEntries("SecondOccurrence");
@@ -659,7 +659,7 @@ namespace UMCP.Tests.Editor
                 ["format"] = "detailed"
             };
 
-            object requestResult = RequestStepLogs.HandleCommand(requestParameters);
+            object requestResult = await RequestStepLogs.HandleCommand(requestParameters);
 
             // Assert
             string requestResultJson = JsonConvert.SerializeObject(requestResult);
@@ -741,13 +741,13 @@ namespace UMCP.Tests.Editor
         #region Performance Tests
 
         [Test]
-        public void Performance_RequestStepLogs_LargeLogHistory_ReasonableTime()
+        public async Task Performance_RequestStepLogs_LargeLogHistory_ReasonableTime()
         {
             // Arrange
             string perfTestStepName = "PerfTest_" + System.Guid.NewGuid().ToString("N")[0..8];
 
             // Mark step
-            MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = perfTestStepName });
+            await MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = perfTestStepName });
 
             // Generate a moderate number of test logs
             for (int i = 0; i < 50; i++)
@@ -758,7 +758,7 @@ namespace UMCP.Tests.Editor
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             // Act
-            object result = RequestStepLogs.HandleCommand(new JObject 
+            object result = await RequestStepLogs.HandleCommand(new JObject 
             { 
                 ["stepName"] = perfTestStepName,
                 ["format"] = "detailed" 

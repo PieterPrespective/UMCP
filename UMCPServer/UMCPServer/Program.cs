@@ -62,6 +62,7 @@ builder.Services
     .WithTools<ManageEditorTool>()
     .WithTools<ManageGameObjectTool>()
     .WithTools<ManageSceneTool>()
+    .WithTools<ManageScriptTool>()
     .WithTools<MarkStartOfNewStepTool>()
     .WithTools<ReadConsoleTool>()
     .WithTools<RequestStepLogsTool>()

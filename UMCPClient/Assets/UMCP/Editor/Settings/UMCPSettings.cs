@@ -38,12 +38,18 @@ namespace UMCP.Editor.Settings
         [Tooltip("Namespaces to exclude from test execution (e.g., 'u040.prespective')")]
         private string[] excludedTestNamespaces = new string[] { "u040.prespective" };
         
+        [Header("Script Tools Configuration")]
+        [SerializeField]
+        [Tooltip("Output folder for decompiled scripts (relative to Assets folder)")]
+        private string decompiledScriptsOutputFolder = "UMCP/DecompiledScripts";
+        
         public int CommandPort => commandPort;
         public int StatePort => statePort;
         public string BindAddress => bindAddress;
         public int SocketTimeout => socketTimeout;
         public int StateSendTimeout => stateSendTimeout;
         public string[] ExcludedTestNamespaces => excludedTestNamespaces;
+        public string DecompiledScriptsOutputFolder => decompiledScriptsOutputFolder;
         
         /// <summary>
         /// Get or create the settings instance

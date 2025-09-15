@@ -20,3 +20,4 @@ MonoBehaviour:
   excludedTestNamespaces:
   - u040.prespective
   - UMCP.Tests.Integration.ExcludedNamespace
+  decompiledScriptsOutputFolder: ../UMCP/DecompiledScripts

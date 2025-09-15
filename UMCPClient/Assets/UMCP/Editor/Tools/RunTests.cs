@@ -2,6 +2,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using UMCP.Editor.Helpers;
 using Unity.EditorCoroutines.Editor;
 using UnityEditor;
@@ -352,12 +353,20 @@ namespace UMCP.Editor.Tools
         private static bool isProcessing = false;
         private static JObject responseData;
 
+
+        public static async Task<object> HandleCommand(JObject @params)
+        { 
+            return await Task.FromResult(HandleCommandSynchronous(@params));
+        }
+
+
+
         /// <summary>
         /// Main handler for the run_tests command
         /// </summary>
         /// <param name="params">JSON parameters containing test execution settings</param>
         /// <returns>Response object with test results</returns>
-        public static object HandleCommand(JObject @params)
+        public static object HandleCommandSynchronous(JObject @params)
         {
             try
             {

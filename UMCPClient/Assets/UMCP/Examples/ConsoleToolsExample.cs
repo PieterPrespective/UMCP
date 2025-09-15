@@ -122,13 +122,13 @@ namespace UMCP.Examples
         
         private void MarkNewStep(string stepName)
         {
-            var result = MarkStartOfNewStep.HandleCommand(new JObject { ["stepName"] = stepName });
+            var result = MarkStartOfNewStep.HandleCommandSynchronous(new JObject { ["stepName"] = stepName });
             HandleResult("MarkStartOfNewStep", result);
         }
         
         private void RetrieveStepLogs(string stepName, string format)
         {
-            var result = RequestStepLogs.HandleCommand(new JObject 
+            var result = RequestStepLogs.HandleCommandSynchronous(new JObject 
             { 
                 ["stepName"] = stepName,
                 ["format"] = format,
@@ -139,7 +139,7 @@ namespace UMCP.Examples
         
         private void ReadAllLogs()
         {
-            var result = ReadConsole.HandleCommand(new JObject 
+            var result = ReadConsole.HandleCommandSynchronous(new JObject 
             { 
                 ["action"] = "get",
                 ["count"] = 20,
@@ -151,7 +151,7 @@ namespace UMCP.Examples
         
         private void ReadErrorLogs()
         {
-            var result = ReadConsole.HandleCommand(new JObject 
+            var result = ReadConsole.HandleCommandSynchronous(new JObject 
             { 
                 ["action"] = "get",
                 ["types"] = new JArray("error"),
@@ -164,7 +164,7 @@ namespace UMCP.Examples
         
         private void ClearConsole()
         {
-            var result = ReadConsole.HandleCommand(new JObject { ["action"] = "clear" });
+            var result = ReadConsole.HandleCommandSynchronous(new JObject { ["action"] = "clear" });
             HandleResult("ClearConsole", result);
         }
         

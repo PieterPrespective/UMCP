@@ -9,6 +9,7 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UMCP.Editor.Tools;
 using UMCP.Editor.Testing;
+using System.Threading.Tasks;
 
 namespace UMCP.Tests.Editor
 {
@@ -22,7 +23,7 @@ namespace UMCP.Tests.Editor
 
         [Test]
         [Description("Tests that all integration test harnesses can be discovered via reflection")]
-        public void GetAllHarnesses_DiscoversAllHarnessClasses_Successfully()
+        public async Task GetAllHarnesses_DiscoversAllHarnessClasses_Successfully()
         {
             // Act
             JObject parameters = new JObject
@@ -30,7 +31,7 @@ namespace UMCP.Tests.Editor
                 ["action"] = "get_all_harnesses"
             };
 
-            object result = ManageIntegrationTests.HandleCommand(parameters);
+            object result = await ManageIntegrationTests.HandleCommand(parameters);
 
             // Assert
             Assert.That(result, Is.Not.Null, "Should return a result object");
@@ -104,24 +105,24 @@ namespace UMCP.Tests.Editor
 
         [Test]
         [Description("Tests that HandleCommand validates input parameters correctly")]
-        public void HandleCommand_ValidatesParameters_Correctly()
+        public async Task HandleCommand_ValidatesParameters_Correctly()
         {
             // Test null parameters
-            object nullResult = ManageIntegrationTests.HandleCommand(null);
+            object nullResult = await ManageIntegrationTests.HandleCommand(null);
             string nullResultJson = Newtonsoft.Json.JsonConvert.SerializeObject(nullResult);
             JObject nullResultObj = JObject.Parse(nullResultJson);
             Assert.That(nullResultObj["success"]?.ToObject<bool>(), Is.EqualTo(false), "Should return error for null parameters");
 
             // Test missing action
             JObject emptyParams = new JObject();
-            object emptyResult = ManageIntegrationTests.HandleCommand(emptyParams);
+            object emptyResult = await ManageIntegrationTests.HandleCommand(emptyParams);
             string emptyResultJson = Newtonsoft.Json.JsonConvert.SerializeObject(emptyResult);
             JObject emptyResultObj = JObject.Parse(emptyResultJson);
             Assert.That(emptyResultObj["success"]?.ToObject<bool>(), Is.EqualTo(false), "Should return error for missing action");
 
             // Test invalid action
             JObject invalidParams = new JObject { ["action"] = "invalid_action" };
-            object invalidResult = ManageIntegrationTests.HandleCommand(invalidParams);
+            object invalidResult = await ManageIntegrationTests.HandleCommand(invalidParams);
             string invalidResultJson = Newtonsoft.Json.JsonConvert.SerializeObject(invalidResult);
             JObject invalidResultObj = JObject.Parse(invalidResultJson);
             Assert.That(invalidResultObj["success"]?.ToObject<bool>(), Is.EqualTo(false), "Should return error for invalid action");
@@ -129,11 +130,11 @@ namespace UMCP.Tests.Editor
 
         [Test]
         [Description("Tests that setup command validates harness class parameter")]
-        public void SetupCommand_ValidatesHarnessClass_Correctly()
+        public async Task SetupCommand_ValidatesHarnessClass_Correctly()
         {
             // Test missing harnassClass parameter
             JObject setupParams = new JObject { ["action"] = "setup" };
-            object result = ManageIntegrationTests.HandleCommand(setupParams);
+            object result = await ManageIntegrationTests.HandleCommand(setupParams);
             
             string resultJson = Newtonsoft.Json.JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
@@ -144,7 +145,7 @@ namespace UMCP.Tests.Editor
 
         [Test]
         [Description("Tests that setup command handles non-existent harness classes")]
-        public void SetupCommand_HandlesNonExistentClass_Gracefully()
+        public async Task SetupCommand_HandlesNonExistentClass_Gracefully()
         {
             // Test non-existent class
             JObject setupParams = new JObject 
@@ -153,7 +154,7 @@ namespace UMCP.Tests.Editor
                 ["harnassClass"] = "NonExistentHarnassClass"
             };
             
-            object result = ManageIntegrationTests.HandleCommand(setupParams);
+            object result = await ManageIntegrationTests.HandleCommand(setupParams);
             
             string resultJson = Newtonsoft.Json.JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
@@ -164,11 +165,11 @@ namespace UMCP.Tests.Editor
 
         [Test]
         [Description("Tests that cleanup command works without active harness")]
-        public void CleanupCommand_WorksWithoutActiveHarness_Successfully()
+        public async Task CleanupCommand_WorksWithoutActiveHarness_Successfully()
         {
             // Test cleanup without active harness
             JObject cleanupParams = new JObject { ["action"] = "cleanup" };
-            object result = ManageIntegrationTests.HandleCommand(cleanupParams);
+            object result = await ManageIntegrationTests.HandleCommand(cleanupParams);
             
             string resultJson = Newtonsoft.Json.JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
@@ -179,11 +180,11 @@ namespace UMCP.Tests.Editor
 
         [Test]
         [Description("Tests that getIntegrationTestState command returns current state information")]
-        public void GetIntegrationTestState_ReturnsStateInformation_Successfully()
+        public async Task GetIntegrationTestState_ReturnsStateInformation_Successfully()
         {
             // Test get state command
             JObject stateParams = new JObject { ["action"] = "get_integration_test_state" };
-            object result = ManageIntegrationTests.HandleCommand(stateParams);
+            object result = await ManageIntegrationTests.HandleCommand(stateParams);
             
             string resultJson = Newtonsoft.Json.JsonConvert.SerializeObject(result);
             JObject resultObj = JObject.Parse(resultJson);
@@ -208,15 +209,15 @@ namespace UMCP.Tests.Editor
 
         [Test]
         [Description("Tests polling workflow with setup and state monitoring")]
-        public void PollingWorkflow_SetupAndStateMonitoring_WorksCorrectly()
+        public async Task PollingWorkflow_SetupAndStateMonitoring_WorksCorrectly()
         {
             // First, ensure we start in a clean state
             JObject cleanupParams = new JObject { ["action"] = "cleanup" };
-            ManageIntegrationTests.HandleCommand(cleanupParams);
+            await ManageIntegrationTests.HandleCommand(cleanupParams);
 
             // Get initial state
             JObject stateParams = new JObject { ["action"] = "get_integration_test_state" };
-            object initialState = ManageIntegrationTests.HandleCommand(stateParams);
+            object initialState = await ManageIntegrationTests.HandleCommand(stateParams);
             
             string initialJson = Newtonsoft.Json.JsonConvert.SerializeObject(initialState);
             JObject initialObj = JObject.Parse(initialJson);
@@ -235,7 +236,7 @@ namespace UMCP.Tests.Editor
                 ["harnassClass"] = "DummyIntegrationTest"
             };
             
-            object setupResult = ManageIntegrationTests.HandleCommand(setupParams);
+            object setupResult = await ManageIntegrationTests.HandleCommand(setupParams);
             string setupJson = Newtonsoft.Json.JsonConvert.SerializeObject(setupResult);
             JObject setupObj = JObject.Parse(setupJson);
             
@@ -247,7 +248,7 @@ namespace UMCP.Tests.Editor
                 Debug.Log("Setup initiated successfully - would normally poll here for completion");
                 
                 // Get state after setup initiation
-                object postSetupState = ManageIntegrationTests.HandleCommand(stateParams);
+                object postSetupState = await ManageIntegrationTests.HandleCommand(stateParams);
                 string postSetupJson = Newtonsoft.Json.JsonConvert.SerializeObject(postSetupState);
                 JObject postSetupObj = JObject.Parse(postSetupJson);
                 
@@ -271,6 +272,7 @@ namespace UMCP.Tests.Editor
         #region Integration with CommandRegistry
 
         [Test]
+        [Ignore("Command Registry is not currently used in UMCP, so this test is ignored")]
         [Description("Tests that ManageIntegrationTests is properly registered in CommandRegistry")]
         public void CommandRegistry_HasManageIntegrationTestsHandler_Registered()
         {

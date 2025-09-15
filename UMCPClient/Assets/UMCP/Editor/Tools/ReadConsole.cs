@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection;
 using UMCP.Editor.Helpers; // For Response class
 using System.Globalization;
+using System.Threading.Tasks;
 
 namespace UMCP.Editor.Tools
 {
@@ -111,7 +112,13 @@ namespace UMCP.Editor.Tools
 
         // --- Main Handler ---
 
-        public static object HandleCommand(JObject @params)
+        public static async Task<object> HandleCommand(JObject @params)
+        {
+            return await Task.FromResult(HandleCommandSynchronous(@params));
+        }
+
+
+        public static object HandleCommandSynchronous(JObject @params)
         {
             // Check if ALL required reflection members were successfully initialized.
              if (_startGettingEntriesMethod == null || _endGettingEntriesMethod == null ||

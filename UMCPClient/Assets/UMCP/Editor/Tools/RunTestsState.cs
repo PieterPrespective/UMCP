@@ -329,7 +329,7 @@ namespace UMCP.Editor
             string logData = "";
             if (!string.IsNullOrEmpty(StateStorage.CompletionCallback))
             {
-                var result = Tools.RequestStepLogs.HandleCommand(new JObject
+                var result = Tools.RequestStepLogs.HandleCommandSynchronous(new JObject
                 {
                     ["stepName"] = StateStorage.RunTestsGUID,
                     ["includeStacktraces"] = true

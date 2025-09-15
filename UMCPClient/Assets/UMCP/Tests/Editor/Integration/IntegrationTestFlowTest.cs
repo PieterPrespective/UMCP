@@ -23,7 +23,7 @@ namespace UMCP.Tests.Editor.Integration
             // Step 1: Validate harnesses (should find DummyIntegrationTest)
             Debug.Log("Step 1: Validating harnesses...");
             JObject getAllHarnessParams = new JObject { ["action"] = "get_all_harnesses" };
-            object validateResult = ManageIntegrationTests.HandleCommand(getAllHarnessParams);
+            object validateResult = ManageIntegrationTests.HandleCommandSynchronous(getAllHarnessParams);
             
             string validateJson = Newtonsoft.Json.JsonConvert.SerializeObject(validateResult);
             JObject validateObj = JObject.Parse(validateJson);
@@ -49,7 +49,7 @@ namespace UMCP.Tests.Editor.Integration
                 ["harnassClass"] = "DummyIntegrationTest"
             };
             
-            object setupResult = ManageIntegrationTests.HandleCommand(setupParams);
+            object setupResult = ManageIntegrationTests.HandleCommandSynchronous(setupParams);
             string setupJson = Newtonsoft.Json.JsonConvert.SerializeObject(setupResult);
             JObject setupObj = JObject.Parse(setupJson);
             Debug.Log($"Setup result: {setupJson}");
@@ -74,7 +74,7 @@ namespace UMCP.Tests.Editor.Integration
                 yield return new WaitForSeconds(pollInterval);
                 elapsedTime += pollInterval;
                 
-                object stateResult = ManageIntegrationTests.HandleCommand(stateParams);
+                object stateResult = ManageIntegrationTests.HandleCommandSynchronous(stateParams);
                 string stateJson = Newtonsoft.Json.JsonConvert.SerializeObject(stateResult);
                 JObject stateObj = JObject.Parse(stateJson);
                 
@@ -111,7 +111,7 @@ namespace UMCP.Tests.Editor.Integration
                 ["count"] = 10
             };
             
-            object consoleResult = ReadConsole.HandleCommand(consoleParams);
+            object consoleResult = ReadConsole.HandleCommandSynchronous(consoleParams);
             string consoleJson = Newtonsoft.Json.JsonConvert.SerializeObject(consoleResult);
             JObject consoleObj = JObject.Parse(consoleJson);
             Debug.Log($"Console result: {consoleJson}");
@@ -143,7 +143,7 @@ namespace UMCP.Tests.Editor.Integration
             Debug.Log("Step 4: Cleaning up integration test...");
             JObject cleanupParams = new JObject { ["action"] = "cleanup" };
             
-            object cleanupResult = ManageIntegrationTests.HandleCommand(cleanupParams);
+            object cleanupResult = ManageIntegrationTests.HandleCommandSynchronous(cleanupParams);
             string cleanupJson = Newtonsoft.Json.JsonConvert.SerializeObject(cleanupResult);
             JObject cleanupObj = JObject.Parse(cleanupJson);
             Debug.Log($"Cleanup result: {cleanupJson}");
@@ -161,7 +161,7 @@ namespace UMCP.Tests.Editor.Integration
                 yield return new WaitForSeconds(pollInterval);
                 elapsedTime += pollInterval;
                 
-                object stateResult = ManageIntegrationTests.HandleCommand(stateParams);
+                object stateResult = ManageIntegrationTests.HandleCommandSynchronous(stateParams);
                 string stateJson = Newtonsoft.Json.JsonConvert.SerializeObject(stateResult);
                 JObject stateObj = JObject.Parse(stateJson);
                 

@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: UMCPTestScriptableObject
   m_EditorClassIdentifier: 
   testString: Test Value
-  testInt: 43
+  testInt: 46
   testFloat: 3.14

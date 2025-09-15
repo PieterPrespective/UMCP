@@ -9,6 +9,7 @@ using System.Collections;
 using Unity.EditorCoroutines.Editor;
 using UMCP.Editor.Helpers;
 using UMCP.Editor.Settings;
+using System.Threading.Tasks;
 
 namespace UMCP.Editor.Tools
 {
@@ -385,12 +386,19 @@ namespace UMCP.Editor.Tools
             return false;
         }
 
+        public static async Task<object> HandleCommand(JObject @params)
+            {
+            return await Task.FromResult(HandleCommandSynchronous(@params));
+            }
+
+
+
         /// <summary>
         /// Main handler for the get_tests command
         /// </summary>
         /// <param name="params">JSON parameters containing TestMode and Filter</param>
         /// <returns>Response object with test information</returns>
-        public static object HandleCommand(JObject @params)
+        public static object HandleCommandSynchronous(JObject @params)
         {
             try
             {

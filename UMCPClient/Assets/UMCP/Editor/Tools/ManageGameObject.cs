@@ -8,7 +8,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEditorInternal;
-using UMCP.Editor.Helpers; // For Response class
+using UMCP.Editor.Helpers;
+using System.Threading.Tasks; // For Response class
 
 namespace UMCP.Editor.Tools
 {
@@ -19,12 +20,12 @@ namespace UMCP.Editor.Tools
     {
         // --- Main Handler ---
 
-        public static object HandleCommand(JObject @params)
+        public static async Task<object> HandleCommand(JObject @params)
         {
             string action = @params["action"]?.ToString().ToLower();
             if (string.IsNullOrEmpty(action))
             {
-                return Response.Error("Action parameter is required.");
+                return await Task.FromResult( Response.Error("Action parameter is required."));
             }
 
             // Parameters used by various actions
@@ -58,8 +59,8 @@ namespace UMCP.Editor.Tools
                     {
                          string compName = @params["componentName"]?.ToString();
                          JObject compProps = @params["componentProperties"]?[compName] as JObject; // Handle potential nesting
-                         if (string.IsNullOrEmpty(compName)) return Response.Error("Missing 'componentName' for 'set_component_property' on prefab.");
-                         if (compProps == null) return Response.Error($"Missing or invalid 'componentProperties' for component '{compName}' for 'set_component_property' on prefab.");
+                         if (string.IsNullOrEmpty(compName)) return await Task.FromResult(Response.Error("Missing 'componentName' for 'set_component_property' on prefab."));
+                         if (compProps == null) return await Task.FromResult(Response.Error($"Missing or invalid 'componentProperties' for component '{compName}' for 'set_component_property' on prefab."));
                          
                          properties = new JObject();
                          properties[compName] = compProps; 
@@ -67,18 +68,18 @@ namespace UMCP.Editor.Tools
                     else // action == "modify"
                     {
                          properties = @params["componentProperties"] as JObject;
-                         if (properties == null) return Response.Error("Missing 'componentProperties' for 'modify' action on prefab.");
+                         if (properties == null) return await Task.FromResult(Response.Error("Missing 'componentProperties' for 'modify' action on prefab."));
                     }
                     
                     assetParams["properties"] = properties;
                     
                     // Call ManageAsset handler
-                    return ManageAsset.HandleCommand(assetParams);
+                    return await Task.FromResult(ManageAsset.HandleCommand(assetParams));
                 }
                  else if (action == "delete" || action == "add_component" || action == "remove_component" || action == "get_components") // Added get_components here too
                 {
                      // Explicitly block other modifications on the prefab asset itself via manage_gameobject
-                     return Response.Error($"Action '{action}' on a prefab asset ('{targetPath}') should be performed using the 'manage_asset' command.");
+                     return await Task.FromResult(Response.Error($"Action '{action}' on a prefab asset ('{targetPath}') should be performed using the 'manage_asset' command."));
                 }
                  // Allow 'create' (instantiation) and 'find' to proceed, although finding a prefab asset by path might be less common via manage_gameobject.
                  // No specific handling needed here, the code below will run.
@@ -90,32 +91,32 @@ namespace UMCP.Editor.Tools
                 switch (action)
                 {
                     case "create":
-                        return CreateGameObject(@params);
+                        return await Task.FromResult(CreateGameObject(@params));
                     case "modify":
-                        return ModifyGameObject(@params, targetToken, searchMethod);
+                        return await Task.FromResult(ModifyGameObject(@params, targetToken, searchMethod));
                     case "delete":
-                        return DeleteGameObject(targetToken, searchMethod);
+                        return await Task.FromResult(DeleteGameObject(targetToken, searchMethod));
                     case "find":
-                         return FindGameObjects(@params, targetToken, searchMethod);
+                         return await Task.FromResult(FindGameObjects(@params, targetToken, searchMethod));
                     case "get_components":
                         string getCompTarget = targetToken?.ToString(); // Expect name, path, or ID string
                         if (getCompTarget == null) return Response.Error("'target' parameter required for get_components.");
-                        return GetComponentsFromTarget(getCompTarget, searchMethod);
+                        return await Task.FromResult(GetComponentsFromTarget(getCompTarget, searchMethod));
                     case "add_component":
-                         return AddComponentToTarget(@params, targetToken, searchMethod);
+                         return await Task.FromResult(AddComponentToTarget(@params, targetToken, searchMethod));
                      case "remove_component":
-                         return RemoveComponentFromTarget(@params, targetToken, searchMethod);
+                         return await Task.FromResult(RemoveComponentFromTarget(@params, targetToken, searchMethod));
                      case "set_component_property":
-                         return SetComponentPropertyOnTarget(@params, targetToken, searchMethod);
+                         return await Task.FromResult(SetComponentPropertyOnTarget(@params, targetToken, searchMethod));
 
                     default:
-                        return Response.Error($"Unknown action: '{action}'.");
+                        return await Task.FromResult(Response.Error($"Unknown action: '{action}'."));
                 }
             }
             catch (Exception e)
             {
                  Debug.LogError($"[ManageGameObject] Action '{action}' failed: {e}");
-                 return Response.Error($"Internal error processing action '{action}': {e.Message}");
+                 return await Task.FromResult(Response.Error($"Internal error processing action '{action}': {e.Message}"));
             }
         }
 

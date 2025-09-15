@@ -165,6 +165,9 @@ public class UnityConnectionService : IUnityConnectionService
         }
     }
     
+
+
+
     public async Task<JObject?> SendCommandAsync(string commandType, JObject? parameters, CancellationToken cancellationToken = default, bool _logResult = false)
     {
         if (!IsConnected && !await ConnectAsync())

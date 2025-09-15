@@ -12,6 +12,7 @@ using UMCP.Editor.Models;
 using UMCP.Editor.Serialization;
 using UMCP.Editor.Settings;
 using UMCP.Editor.Tools;
+using UMCP.Editor.Tools.ManageScripts;
 using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEngine;
@@ -30,7 +31,7 @@ namespace UMCP.Editor
         // Main command handling
         private static TcpListener listener;
         private static bool isRunning = false;
-        private static readonly object lockObj = new();
+        //private static readonly object lockObj = new();
         private static Dictionary<string, (string commandJson, TaskCompletionSource<string> tcs)> commandQueue = new();
         
         // Port configuration from settings
@@ -162,8 +163,10 @@ namespace UMCP.Editor
                         stateSemaphore.Release();
                     }
 
-                    
-                    Debug.Log($"State client connected from {client.Client.RemoteEndPoint}");
+                    bool hasClientLock = Monitor.IsEntered(clientsLock);
+
+
+                    Debug.Log($"State client connected from {client.Client.RemoteEndPoint} clientLock: {hasClientLock}");
                     
                     // Send initial state immediately
                     _ = Task.Run(async () =>
@@ -227,12 +230,25 @@ namespace UMCP.Editor
                                 continue;
                             }
 
-                            lock (lockObj)
+                            await commandSemaphore.WaitAsync();
+                            try
                             {
                                 commandQueue[commandId] = (commandText, tcs);
                             }
+                            finally
+                            {
+                                commandSemaphore.Release();
+                            }
+
+                            //lock (lockObj)
+                            //{
+                            //    commandQueue[commandId] = (commandText, tcs);
+                            //}
 
                             string response = await tcs.Task;
+
+                            //UnityEngine.Debug.Log($"Sending response for command ID {commandId}: {response}");
+
                             byte[] responseBytes = System.Text.Encoding.UTF8.GetBytes(response);
                             await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
                         }
@@ -263,11 +279,23 @@ namespace UMCP.Editor
             }
         }
 
-        private static void ProcessCommands()
+        private static SemaphoreSlim commandSemaphore = new(1, 1);
+
+
+
+
+
+
+
+        private static async void ProcessCommands()
         {
             List<string> processedIds = new();
-            lock (lockObj)
+            await commandSemaphore.WaitAsync();
+            try
             {
+
+            //lock (lockObj)
+            //{
                 foreach (var kvp in commandQueue.ToList())
                 {
                     string id = kvp.Key;
@@ -344,7 +372,7 @@ namespace UMCP.Editor
                                 }
                             }
 
-                            string responseJson = ExecuteCommand(command);
+                            string responseJson = await ExecuteCommand(command);
                             tcs.SetResult(responseJson);
                         }
                     }
@@ -370,6 +398,11 @@ namespace UMCP.Editor
                 {
                     commandQueue.Remove(id);
                 }
+                //}
+            }
+            finally
+            {
+                commandSemaphore.Release();
             }
         }
 
@@ -397,7 +430,7 @@ namespace UMCP.Editor
             return false;
         }
 
-        private static string ExecuteCommand(Command command)
+        private static async Task<string> ExecuteCommand(Command command)
         {
             try
             {
@@ -422,7 +455,7 @@ namespace UMCP.Editor
                 // Use JObject for parameters as the new handlers likely expect this
                 JObject paramsObject = command.@params ?? new JObject();
 
-                Debug.Log($"Gotten Request for operation '{command.type}' with params '{paramsObject?.ToString() ?? "NULL"}'");
+                //Debug.Log($"Gotten Request for operation '{command.type}' with params '{paramsObject?.ToString() ?? "NULL"}'");
 
 
 
@@ -431,30 +464,29 @@ namespace UMCP.Editor
                 {
                     // Maps the command type (tool name) to the corresponding handler's static HandleCommand method
                     // Assumes each handler class has a static method named 'HandleCommand' that takes JObject parameters
-                    "manage_scene" => ManageScene.HandleCommand(paramsObject),
-                    "manage_editor" => ManageEditor.HandleCommand(paramsObject),
-                    "manage_gameobject" => ManageGameObject.HandleCommand(paramsObject),
-                    "manage_asset" => ManageAsset.HandleCommand(paramsObject),
-                    "read_console" => ReadConsole.HandleCommand(paramsObject),
-                    "execute_menu_item" => ExecuteMenuItem.HandleCommand(paramsObject),
-                    "get_project_path" => GetProjectPath.HandleCommand(paramsObject),
-                    "get_unity_state" => GetCurrentState(), // New command for getting current state
-                    "force_update_editor" => ForceUpdateEditor.HandleCommand(paramsObject),
-                    "mark_start_of_new_step" => MarkStartOfNewStep.HandleCommand(paramsObject),
-                    "request_step_logs" => RequestStepLogs.HandleCommand(paramsObject),
-                    "get_tests" => GetTests.HandleCommand(paramsObject),
-                    "run_tests" => RunTests.HandleCommand(paramsObject),
-                    "HandleManageIntegrationTests" => ManageIntegrationTests.HandleCommand(paramsObject),
+                    "manage_scene" => await ManageScene.HandleCommand(paramsObject),
+                    "manage_editor" => await ManageEditor.HandleCommand(paramsObject),
+                    "manage_gameobject" => await ManageGameObject.HandleCommand(paramsObject),
+                    "manage_asset" => await ManageAsset.HandleCommand(paramsObject),
+                    "read_console" => await ReadConsole.HandleCommand(paramsObject),
+                    "execute_menu_item" => await ExecuteMenuItem.HandleCommand(paramsObject),
+                    "get_project_path" => await GetProjectPath.HandleCommand(paramsObject),
+                    "get_unity_state" => await Task.FromResult(GetCurrentState()), // New command for getting current state
+                    "force_update_editor" => await ForceUpdateEditor.HandleCommand(paramsObject),
+                    "mark_start_of_new_step" => await MarkStartOfNewStep.HandleCommand(paramsObject),
+                    "request_step_logs" => await RequestStepLogs.HandleCommand(paramsObject),
+                    "get_tests" => await GetTests.HandleCommand(paramsObject),
+                    "run_tests" => await RunTests.HandleCommand(paramsObject),
+                    "HandleManageIntegrationTests" => await ManageIntegrationTests.HandleCommand(paramsObject),
+                    "manage_scripts" => await ManageScripts.HandleCommand(paramsObject),
                     _ => throw new ArgumentException($"Unknown or unsupported command type: {command.type}")
                 };
 
                 // Standard success response format
-                Debug.Log($"Command '{command.type}' executed successfully.");
+                //Debug.Log($"Command '{command.type}' executed successfully.");
                 var response = new { status = "success", result };
                 string responseJson = JSONConversionUtility.SerializeObject(response);
-                Debug.Log($"Command '{command.type}' executed successfully with parameters: {responseJson}");
-
-                
+                //Debug.Log($"Command '{command.type}' executed successfully with parameters: {responseJson}");
 
                 return JSONConversionUtility.SerializeObject(response);
             }

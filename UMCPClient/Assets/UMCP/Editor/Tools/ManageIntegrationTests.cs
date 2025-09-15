@@ -12,6 +12,7 @@ using UMCP.Editor.Testing;
 using UMCP.Editor.Models;
 using UMCP.Editor.Helpers;
 using Unity.EditorCoroutines.Editor;
+using System.Threading.Tasks;
 
 namespace UMCP.Editor.Tools
 {
@@ -24,7 +25,7 @@ namespace UMCP.Editor.Tools
     {
         private static UMCPIntegrationTestHarnass activeHarnass = null;
         private static IntegrationTestStateStorage _stateStorage;
-        
+
         /// <summary>
         /// Gets the persistent state storage instance, creating one if necessary
         /// </summary>
@@ -51,12 +52,20 @@ namespace UMCP.Editor.Tools
             }
         }
 
+        public static async Task<object> HandleCommand(JObject parameters)
+            {
+            return await Task.FromResult(HandleCommandSynchronous(parameters));
+            }
+
+
+
+
         /// <summary>
         /// Handles integration test management commands from the server.
         /// </summary>
         /// <param name="parameters">Command parameters containing action and test class information</param>
         /// <returns>Response object with command execution results</returns>
-        public static object HandleCommand(JObject parameters)
+        public static object HandleCommandSynchronous(JObject parameters)
         {
             try
             {

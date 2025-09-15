@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic; // Added for HashSet
+using System.Threading.Tasks;
 using UMCP.Editor.Helpers; // For Response class
 using UnityEditor;
 using UnityEngine;
@@ -24,7 +25,7 @@ namespace UMCP.Editor.Tools
         /// <summary>
         /// Main handler for executing menu items or getting available ones.
         /// </summary>
-        public static object HandleCommand(JObject @params)
+        public static async Task<object> HandleCommand(JObject @params)
         {
             string action = @params["action"]?.ToString().ToLower() ?? "execute"; // Default action
 
@@ -33,7 +34,7 @@ namespace UMCP.Editor.Tools
                 switch (action)
                 {
                     case "execute":
-                        return ExecuteItem(@params);
+                        return await Task.FromResult(ExecuteItem(@params));
                     case "get_available_menus":
 
                         string filter = @params["menu_path"]?.ToString();
@@ -43,23 +44,16 @@ namespace UMCP.Editor.Tools
                             $"{menuItemInfos.Count} menu items found." :
                             $"{menuItemInfos.Count} menu items found matching filter '{filter}'.";
 
-                        return Response.Success(responseMessage, menuItemInfos);
+                        return await Task.FromResult(Response.Success(responseMessage, menuItemInfos));
 
-                        // Getting a comprehensive list of *all* menu items dynamically is very difficult
-                        // and often requires complex reflection or maintaining a manual list.
-                        // Returning a placeholder/acknowledgement for now.
-                        //Debug.LogWarning("[ExecuteMenuItem] 'get_available_menus' action is not fully implemented. Dynamically listing all menu items is complex.");
-                        // Returning an empty list as per the refactor plan's requirements.
-                        //return Response.Success("'get_available_menus' action is not fully implemented. Returning empty list.", new List<string>());
-                        // TODO: Consider implementing a basic list of common/known menu items or exploring reflection techniques if this feature becomes critical.
                     default:
-                        return Response.Error($"Unknown action: '{action}'. Valid actions are 'execute', 'get_available_menus'.");
+                        return await Task.FromResult(Response.Error($"Unknown action: '{action}'. Valid actions are 'execute', 'get_available_menus'."));
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[ExecuteMenuItem] Action '{action}' failed: {e}");
-                return Response.Error($"Internal error processing action '{action}': {e.Message}");
+                return await Task.FromResult(Response.Error($"Internal error processing action '{action}': {e.Message}"));
             }
         }
 

@@ -1,10 +1,47 @@
-using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.ComponentModel;
 using UMCPServer.Services;
 
 namespace UMCPServer.Tools;
+
+public class ConsoleLogResult
+{
+    [JsonProperty("success")]
+    public bool Success;
+
+    [JsonProperty("message")]
+    public string Message;
+
+    [JsonProperty("entries")]
+    public List<ConsoleLogEntry> Entries;
+
+    [JsonProperty("count")]
+    public int Count;
+}
+
+
+
+public class ConsoleLogEntry
+{
+    [JsonProperty("type")]
+    public string Type;
+
+    [JsonProperty("message")]
+    public string Message;
+
+    [JsonProperty("file")]
+    public string File;
+
+    [JsonProperty("line")]
+    public int Line;
+
+    [JsonProperty("stackTrace")]
+    public string StackTrace;
+}
+
 
 [McpServerToolType]
 public class ReadConsoleTool
@@ -12,6 +49,9 @@ public class ReadConsoleTool
     private readonly ILogger<ReadConsoleTool> _logger;
     private readonly UnityConnectionService _unityConnection;
     
+    
+
+
     public ReadConsoleTool(ILogger<ReadConsoleTool> logger, UnityConnectionService unityConnection)
     {
         _logger = logger;
@@ -38,8 +78,8 @@ public class ReadConsoleTool
         
         [Description("Include stack traces in the output (default: true)")]
         bool includeStacktrace = true,
-        
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool returnAsCastObject = false)
     {
         try
         {
@@ -120,10 +160,41 @@ public class ReadConsoleTool
             // For 'get' action, return the log entries - Fix: data is nested in result object
             var result = response["result"];
             var message = response.Value<string>("message");
-            var data = response.Value<JArray>("data");
+
+            //var dataWLinebreaks = result?.Value<string>("data");
+            //dataWLinebreaks = dataWLinebreaks.Replace('\n', ' ').Replace('\r', ' ');
+
+            var data = response.Value<JArray>("data");//JArray.Parse(dataWLinebreaks);
+                                                      //response.Value<JArray>("data");
+            //Console.WriteLine("Raw Data: " + (data?.ToString() ?? "null"));
+            if (returnAsCastObject)
+            {
+                List<ConsoleLogEntry> dynamicData = (data != null) ? data.Select((jobj)=>jobj.Value<ConsoleLogEntry>() ?? new ConsoleLogEntry()).ToList() : new List<ConsoleLogEntry>();
+                return new ConsoleLogResult
+                {
+                    Success = true,
+                    Message = message ?? "Log entries retrieved successfully" /*: '" + response.ToString() + "'"*/,
+                    Entries = dynamicData,
+                    Count = dynamicData.Count()
+                };
+            }
+            else
+            {
+                List<object> dynamicData = (data != null) ? data.Select(ConvertJTokenToObjectSmart).ToList() : new List<object>();
+                return new
+                {
+                    success = true,
+                    message = message ?? "Log entries retrieved successfully" /*: '" + response.ToString() + "'"*/,
+                    entries = dynamicData,
+                    count = data?.Count() ?? 0
+                };
+            }
+
+
+                
 
             // Method 1: Simple conversion
-            List<object> dynamicData = (data != null) ? data.Select(ConvertJTokenToObjectSmart).ToList() : new List<object>();
+            //List<string> dynamicData = (data != null) ? data.Select(ConvertJTokenToObjectSmart).Select((obj)=> obj.ToString() ?? "").ToList() : new List<string>();
 
 
 
@@ -131,13 +202,13 @@ public class ReadConsoleTool
             //result?.Value<string>("message");
             //var data = result?["data"];
 
-            return new
-            {
-                success = true,
-                message = message ?? "Log entries retrieved successfully" /*: '" + response.ToString() + "'"*/,
-                entries = dynamicData,
-                count = data?.Count() ?? 0
-            };
+            //return new
+            //{
+            //    success = true,
+            //    message = message ?? "Log entries retrieved successfully" /*: '" + response.ToString() + "'"*/,
+            //    entries = dynamicData,
+            //    count = data?.Count() ?? 0
+            //};
         }
         catch (OperationCanceledException)
         {

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UMCP.Editor.Helpers;
+using System.Threading.Tasks;
 
 namespace UMCP.Editor.Tools
 {
@@ -13,7 +14,12 @@ namespace UMCP.Editor.Tools
     /// </summary>
     public static class RequestStepLogs
     {
-        public static object HandleCommand(JObject @params)
+        public static async Task< object> HandleCommand(JObject @params)
+            {
+            return await Task.FromResult(HandleCommandSynchronous(@params));
+            }
+
+        public static object HandleCommandSynchronous(JObject @params)
         {
             try
             {
@@ -28,7 +34,7 @@ namespace UMCP.Editor.Tools
                 }
                 
                 // Get all console entries using ReadConsole functionality
-                var allLogsResult = ReadConsole.HandleCommand(new JObject
+                var allLogsResult = ReadConsole.HandleCommandSynchronous(new JObject
                 {
                     ["action"] = "get",
                     ["types"] = new JArray("error", "warning", "log"),

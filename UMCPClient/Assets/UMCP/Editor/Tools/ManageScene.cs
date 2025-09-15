@@ -7,7 +7,8 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
-using UMCP.Editor.Helpers; // For Response class
+using UMCP.Editor.Helpers;
+using System.Threading.Tasks; // For Response class
 
 namespace UMCP.Editor.Tools
 {
@@ -19,7 +20,7 @@ namespace UMCP.Editor.Tools
         /// <summary>
         /// Main handler for scene management actions.
         /// </summary>
-        public static object HandleCommand(JObject @params)
+        public static async Task<object> HandleCommand(JObject @params)
         {
             string action = @params["action"]?.ToString().ToLower();
             string name = @params["name"]?.ToString();
@@ -45,7 +46,7 @@ namespace UMCP.Editor.Tools
 
             if (string.IsNullOrEmpty(action))
             {
-                return Response.Error("Action parameter is required.");
+                return await Task.FromResult(Response.Error("Action parameter is required."));
             }
 
             string sceneFileName = string.IsNullOrEmpty(name) ? null : $"{name}.unity";
@@ -64,7 +65,7 @@ namespace UMCP.Editor.Tools
                 }
                 catch (Exception e)
                 {
-                    return Response.Error($"Could not create directory '{fullPathDir}': {e.Message}");
+                    return await Task.FromResult(Response.Error($"Could not create directory '{fullPathDir}': {e.Message}"));
                 }
             }
 
@@ -74,27 +75,27 @@ namespace UMCP.Editor.Tools
                 case "create":
                     if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(relativePath))
                         return Response.Error("'name' and 'path' parameters are required for 'create' action.");
-                    return CreateScene(fullPath, relativePath);
+                    return await Task.FromResult(CreateScene(fullPath, relativePath));
                 case "load":
                     // Loading can be done by path/name or build index
                     if (!string.IsNullOrEmpty(relativePath))
-                        return LoadScene(relativePath);
+                        return await Task.FromResult(LoadScene(relativePath));
                     else if (buildIndex.HasValue)
-                        return LoadScene(buildIndex.Value);
+                        return await Task.FromResult(LoadScene(buildIndex.Value));
                     else
                         return Response.Error("Either 'name'/'path' or 'buildIndex' must be provided for 'load' action.");
                 case "save":
                     // Save current scene, optionally to a new path
-                    return SaveScene(fullPath, relativePath);
+                    return await Task.FromResult(SaveScene(fullPath, relativePath));
                 case "get_hierarchy":
-                    return GetSceneHierarchy();
+                    return await Task.FromResult(GetSceneHierarchy());
                 case "get_active":
-                    return GetActiveSceneInfo();
+                    return await Task.FromResult(GetActiveSceneInfo());
                  case "get_build_settings":
-                    return GetBuildSettingsScenes();
+                    return await Task.FromResult(GetBuildSettingsScenes());
                 // Add cases for modifying build settings, additive loading, unloading etc.
                 default:
-                    return Response.Error($"Unknown action: '{action}'. Valid actions: create, load, save, get_hierarchy, get_active, get_build_settings.");
+                    return await Task.FromResult(Response.Error($"Unknown action: '{action}'. Valid actions: create, load, save, get_hierarchy, get_active, get_build_settings."));
             }
         }
 

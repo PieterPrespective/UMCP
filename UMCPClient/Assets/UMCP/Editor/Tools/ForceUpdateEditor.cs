@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEditor;
 using Newtonsoft.Json.Linq;
 using System;
-using UMCP.Editor.Helpers; // For Response class
+using UMCP.Editor.Helpers;
+using System.Threading.Tasks; // For Response class
 
 namespace UMCP.Editor.Tools
 {
@@ -13,8 +14,15 @@ namespace UMCP.Editor.Tools
     {
         private static bool isUpdating = false;
         private static readonly object updateLock = new object();
-        public static object HandleCommand(JObject @params)
+
+        public static async Task<object> HandleCommand(JObject @params)
         {
+             return await Task.FromResult(HandleCommandSynchronous(@params));
+        }
+
+        public static object HandleCommandSynchronous(JObject @params)
+        {
+
             try
             {
                 // Prevent recursive calls

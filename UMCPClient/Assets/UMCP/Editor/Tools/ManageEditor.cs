@@ -6,6 +6,7 @@ using System.Linq;
 using System.Collections.Generic;
 using UMCP.Editor.Helpers;
 using UMCP.Editor.Tools.Utilities;
+using System.Threading.Tasks;
 
 namespace UMCP.Editor.Tools
 {
@@ -18,7 +19,7 @@ namespace UMCP.Editor.Tools
         /// <summary>
         /// Main handler for editor management actions using functional utilities.
         /// </summary>
-        public static object HandleCommand(JObject @params)
+        public static async Task<object> HandleCommand(JObject @params)
         {
             string action = @params["action"]?.ToString().ToLower();
             
@@ -39,7 +40,7 @@ namespace UMCP.Editor.Tools
             string toolName = @params["toolName"]?.ToString();
 
             // Route action to appropriate utility function
-            return action switch
+            return await Task.FromResult( action switch
             {
                 // Play Mode Control
                 "play" => ManageEditorUtility.PlayMode(),
@@ -70,7 +71,7 @@ namespace UMCP.Editor.Tools
 
                 // Default case (should never hit due to validation above)
                 _ => Response.Error($"Unknown action: '{action}'.")
-            };
+            });
         }
 
         /// <summary>

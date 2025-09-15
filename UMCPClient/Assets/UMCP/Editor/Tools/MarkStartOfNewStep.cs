@@ -3,6 +3,7 @@ using UnityEditor;
 using Newtonsoft.Json.Linq;
 using System;
 using UMCP.Editor.Helpers;
+using System.Threading.Tasks;
 
 namespace UMCP.Editor.Tools
 {
@@ -15,8 +16,13 @@ namespace UMCP.Editor.Tools
         // Static marker format for easy identification
         private const string MARKER_PREFIX = "[UMCP_STEP_START]";
         private const string MARKER_SUFFIX = "[/UMCP_STEP_START]";
-        
-        public static object HandleCommand(JObject @params)
+
+        public static async Task<object> HandleCommand(JObject @params)
+        {
+            return await Task.FromResult(HandleCommandSynchronous(@params));
+        }
+
+        public static object HandleCommandSynchronous(JObject @params)
         {
             try
             {

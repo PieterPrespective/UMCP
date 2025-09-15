@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Xml.Linq;
 using UMCP.Editor.Helpers; // For Response class
 using UnityEditor;
@@ -28,19 +29,19 @@ namespace UMCP.Editor.Tools
             "get_components"
         };
 
-        public static object HandleCommand(JObject @params)
+        public static async Task<object> HandleCommand(JObject @params)
         {
             string action = @params["action"]?.ToString().ToLower();
             if (string.IsNullOrEmpty(action))
             {
-                return Response.Error("Action parameter is required.");
+                return await Task.FromResult(Response.Error("Action parameter is required."));
             }
 
             // Check if the action is valid before switching
             if (!ValidActions.Contains(action))
             {
                 string validActionsList = string.Join(", ", ValidActions);
-                return Response.Error($"Unknown action: '{action}'. Valid actions are: {validActionsList}");
+                return await Task.FromResult(Response.Error($"Unknown action: '{action}'. Valid actions are: {validActionsList}"));
             }
 
             // Common parameters
@@ -52,37 +53,37 @@ namespace UMCP.Editor.Tools
                 {
                     case "import":
                         // Note: Unity typically auto-imports. This might re-import or configure import settings.
-                        return ReimportAsset(path, @params["properties"] as JObject);
+                        return await Task.FromResult(ReimportAsset(path, @params["properties"] as JObject));
                     case "create":
-                        return CreateAsset(@params);
+                        return await Task.FromResult(CreateAsset(@params));
                     case "modify":
-                        return ModifyAsset(path, @params["properties"] as JObject);
+                        return await Task.FromResult(ModifyAsset(path, @params["properties"] as JObject));
                     case "delete":
-                        return DeleteAsset(path);
+                        return await Task.FromResult(DeleteAsset(path));
                     case "duplicate":
-                        return DuplicateAsset(path, @params["destination"]?.ToString());
+                        return await Task.FromResult(DuplicateAsset(path, @params["destination"]?.ToString()));
                     case "move": // Often same as rename if within Assets/
                     case "rename":
-                        return MoveOrRenameAsset(path, @params["destination"]?.ToString());
+                        return await Task.FromResult(MoveOrRenameAsset(path, @params["destination"]?.ToString()));
                     case "search":
-                         return SearchAssets(@params);
+                         return await Task.FromResult(SearchAssets(@params));
                     case "get_info":
-                         return GetAssetInfo(path, @params["generatePreview"]?.ToObject<bool>() ?? false);
+                         return await Task.FromResult(GetAssetInfo(path, @params["generatePreview"]?.ToObject<bool>() ?? false));
                     case "create_folder": // Added specific action for clarity
-                         return CreateFolder(path);
+                         return await Task.FromResult(CreateFolder(path));
                     case "get_components":
-                         return GetComponentsFromAsset(path);
+                         return await Task.FromResult(GetComponentsFromAsset(path));
 
                     default:
                         // This error message is less likely to be hit now, but kept here as a fallback or for potential future modifications.
                         string validActionsListDefault = string.Join(", ", ValidActions);
-                        return Response.Error($"Unknown action: '{action}'. Valid actions are: {validActionsListDefault}");
+                        return await Task.FromResult(Response.Error($"Unknown action: '{action}'. Valid actions are: {validActionsListDefault}"));
                 }
             }
             catch (Exception e)
             {
                  Debug.LogError($"[ManageAsset] Action '{action}' failed for path '{path}': {e}");
-                 return Response.Error($"Internal error processing action '{action}' on '{path}': {e.Message}");
+                 return await Task.FromResult(Response.Error($"Internal error processing action '{action}' on '{path}': {e.Message}"));
             }
         }
 
